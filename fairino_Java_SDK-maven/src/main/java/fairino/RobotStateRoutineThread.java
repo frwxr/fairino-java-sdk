@@ -406,6 +406,26 @@ public class RobotStateRoutineThread extends Thread
                 System.arraycopy(pkgBuf, 884, tmp, 0, 2);
                 pkg.endLuaErrCode = byteToShort(tmp)[0];
 
+                System.arraycopy(pkgBuf, 886, tmp, 0, 2);
+                pkg.cl_analog_output[0] = byteToShort(tmp)[0];
+                System.arraycopy(pkgBuf, 888, tmp, 0, 2);
+                pkg.cl_analog_output[1] = byteToShort(tmp)[0];
+
+                System.arraycopy(pkgBuf, 890, tmp, 0, 2);
+                pkg.tl_analog_output = byteToShort(tmp)[0];
+                System.arraycopy(pkgBuf, 892, tmp, 0, 4);
+                pkg.gripperRotNum = byte2float(tmp);
+//                System.arraycopy(pkgBuf, 896, tmp, 0, 1);
+                pkg.gripperRotSpeed = (int)pkgBuf[896];
+//                System.arraycopy(pkgBuf, 897, tmp, 0, 1);
+                pkg.gripperRotTorque =  (int)pkgBuf[897];
+
+                pkg.weldingBreakOffstate.breakOffState = (int)pkgBuf[898];
+                pkg.weldingBreakOffstate.weldArcState = (int)pkgBuf[899];
+
+                System.arraycopy(pkgBuf, 900, tmp, 0, 2);
+                pkg.check_sum = byteToShort(tmp)[0];
+
             }
             catch (Throwable e)
             {

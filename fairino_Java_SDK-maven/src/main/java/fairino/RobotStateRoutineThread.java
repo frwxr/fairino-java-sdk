@@ -475,10 +475,16 @@ public class RobotStateRoutineThread extends Thread
     }
 
     public static int bytesToInt(byte[] a){
-        int ans=0;
-        for(int i=0;i<4;i++){
-            ans<<=8;//左移 8 位
-            ans|=a[3-i];//保存 byte 值到 ans 的最低 8 位上
+//        int ans=0;
+//        for(int i=0;i<4;i++){
+//            ans<<=8;//左移 8 位
+//            ans|=a[3-i];//保存 byte 值到 ans 的最低 8 位上
+//        }
+//        return ans;
+        int ans = 0;
+        for (int i = 0; i < 4; i++) {
+            ans <<= 8;              // 左移 8 位
+            ans |= (a[3 - i] & 0xFF); // 保存无符号字节值到 ans 的最低 8 位
         }
         return ans;
     }

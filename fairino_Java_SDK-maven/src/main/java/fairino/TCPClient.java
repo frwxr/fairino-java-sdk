@@ -291,6 +291,7 @@ public class TCPClient
             System.out.println("get pkg exception " + e.getMessage());
             if(ReConnect())
             {
+
                 return 0;
             }
             else

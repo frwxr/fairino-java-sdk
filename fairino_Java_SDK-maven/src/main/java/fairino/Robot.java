@@ -622,11 +622,15 @@ public class Robot
         }
         catch (Throwable e)
         {
-            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
+            if(!IsSockComError())
             {
-                MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
+                return MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
             }
-            else if (log != null)
+//            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
+//            {
+//                MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
+//            }
+            if (log != null)
             {
                 log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
             }
@@ -5085,7 +5089,7 @@ public class Robot
 
             }
 
-            /**
+             /**
              * @brief  轨迹复现
              * @return  错误码
              */
@@ -5103,6 +5107,78 @@ public class Robot
                     if (log != null)
                     {
                         log.LogInfo("MoveTrajectoryJ() : " + rtn);
+                    }
+                    return rtn;
+                }
+                catch (Throwable e)
+                {
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+            }
+
+
+            /**
+             * @brief  轨迹预处理(轨迹前瞻)
+             * @param  name  轨迹文件名
+             * @param  mode 采样模式，0-不进行采样；1-等数据间隔采样；2-等误差限制采样
+             * @param  errorLim 误差限制，使用直线拟合生效
+             * @param  type 平滑方式，0-贝塞尔平滑
+             * @param  precision 平滑精度，使用贝塞尔平滑时生效
+             * @param  vamx 设定的最大速度，mm/s
+             * @param  amax 设定的最大加速度，mm/s2
+             * @param  jmax 设定的最大加加速度，mm/s3
+             * @return  错误码
+             */
+            public int LoadTrajectoryLA(String name, int mode, double errorLim, int type, double precision, double vamx, double amax, double jmax)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+
+                try
+                {
+                    Object[] params = new Object[] {name, mode, errorLim, type, precision, vamx, amax, jmax};
+                    int rtn = (int)client.execute("LoadTrajectoryLA" , params);
+                    if (log != null)
+                    {
+                        log.LogInfo("LoadTrajectoryLA(" + name + ", " + mode + "," + errorLim+ ","+type+ ","+precision+ "," +vamx+ amax+","+jmax+") : " + rtn);
+                    }
+                    return rtn;
+                }
+                catch (Throwable e)
+                {
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+
+            }
+
+            /**
+             * @brief  轨迹复现(轨迹前瞻)
+             * @return  错误码
+             */
+            public int MoveTrajectoryLA()
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+
+                try
+                {
+                    Object[] params = new Object[] {};
+                    int rtn = (int)client.execute("MoveTrajectoryLA" , params);
+                    if (log != null)
+                    {
+                        log.LogInfo("MoveTrajectoryLA() : " + rtn);
                     }
                     return rtn;
                 }
@@ -7216,7 +7292,7 @@ public class Robot
 
                 try
                 {
-                    Object[] param = { encChannel, resolution, lead, wpAxis, vision, speedRadio };
+                    Object[] param = { encChannel, resolution, lead, wpAxis, vision, speedRadio};
                     Object[] params = new Object[] {param};
                     int rtn = (int)client.execute("ConveyorSetParam" , params);
                     if (log != null)
@@ -8964,7 +9040,6 @@ public class Robot
                 return 0;
             }
 
-
             private boolean IsSockComError()
             {
                 while(robotStateRoutineThread.clientRobotState.GetReconnState())
@@ -8984,6 +9059,10 @@ public class Robot
                 {
                     return false;
                 }
+            }
+
+            public boolean isConnected(){
+                return IsSockComError();
             }
 
             /**
@@ -11538,9 +11617,11 @@ public class Robot
              * @param  referSampleStartUd 上下基准电流采样开始计数(反馈)，cyc
              * @param  referSampleCountUd 上下基准电流采样循环计数(反馈)，cyc
              * @param  referenceCurrent 上下基准电流mA
+             * @param  offsetType 偏置跟踪类型，0-不偏置；1-采样；2-百分比
+             * @param  offsetParameter 偏置参数；采样(偏置采样开始时间，默认采一周期)；百分比(偏置百分比(-100 ~ 100))
              * @return  错误码
              */
-            public int ArcWeldTraceControl(int flag, double delaytime, int isLeftRight, double klr, double tStartLr, double stepMaxLr, double sumMaxLr, int isUpLow, double kud, double tStartUd, double stepMaxUd, double sumMaxUd, int axisSelect, int referenceType, double referSampleStartUd, double referSampleCountUd, double referenceCurrent)
+            public int ArcWeldTraceControl(int flag, double delaytime, int isLeftRight, double klr, double tStartLr, double stepMaxLr, double sumMaxLr, int isUpLow, double kud, double tStartUd, double stepMaxUd, double sumMaxUd, int axisSelect, int referenceType, double referSampleStartUd, double referSampleCountUd, double referenceCurrent, int offsetType, int offsetParameter)
             {
                 if (IsSockComError())
                 {
@@ -11551,11 +11632,11 @@ public class Robot
 
                     Object[] paramLR = { klr, tStartLr, stepMaxLr, sumMaxLr };
                     Object[] paramUD = { kud, tStartUd, stepMaxUd, sumMaxUd };
-                    Object[] params = new Object[] {flag, delaytime, isLeftRight, paramLR, isUpLow, paramUD, axisSelect, referenceType, referSampleStartUd, referSampleCountUd, referenceCurrent};
+                    Object[] params = new Object[] {flag, delaytime, isLeftRight, paramLR, isUpLow, paramUD, axisSelect, referenceType, referSampleStartUd, referSampleCountUd, referenceCurrent,offsetType,offsetParameter};
                     int rtn = (int)client.execute("ArcWeldTraceControl" , params);
                     if (log != null)
                     {
-                        log.LogInfo("ArcWeldTraceControl(" + flag + ", " + delaytime + ", " + isLeftRight + ", " + klr + ", " + tStartLr + ", " + stepMaxLr + ", " + sumMaxLr + ", " + isUpLow + ", " + kud + ", " + tStartUd + ", " + stepMaxUd + ", " + sumMaxUd + ", " + axisSelect + ", " + referenceType + ", " + referSampleStartUd + ", " + referSampleCountUd + ", " + referenceCurrent +") : " + rtn);
+                        log.LogInfo("ArcWeldTraceControl(" + flag + ", " + delaytime + ", " + isLeftRight + ", " + klr + ", " + tStartLr + ", " + stepMaxLr + ", " + sumMaxLr + ", " + isUpLow + ", " + kud + ", " + tStartUd + ", " + stepMaxUd + ", " + sumMaxUd + ", " + axisSelect + ", " + referenceType + ", " + referSampleStartUd + ", " + referSampleCountUd + ", " + referenceCurrent + ","+offsetType+", " +offsetParameter+") : " + rtn);
                     }
                     return rtn;
                 }
@@ -11605,6 +11686,7 @@ public class Robot
              * @param  status 控制状态，0-关闭；1-开启
              * @param  asaptiveFlag 自适应开启标志，0-关闭；1-开启
              * @param  interfereDragFlag 干涉区拖动标志，0-关闭；1-开启
+             * @param  ingularityConstraintsFlag 奇异点策略，0-规避；1-穿越
              * @param  M 惯性系数
              * @param  B 阻尼系数
              * @param  K 刚度系数
@@ -11613,7 +11695,7 @@ public class Robot
              * @param  Vmax 最大关节速度限制 °/s
              * @return  错误码
              */
-            public int EndForceDragControl(int status, int asaptiveFlag, int interfereDragFlag, Object[] M, Object[] B, Object[] K, Object[] F, double Fmax, double Vmax)
+            public int EndForceDragControl(int status, int asaptiveFlag, int interfereDragFlag,int ingularityConstraintsFlag, Object[] M, Object[] B, Object[] K, Object[] F, double Fmax, double Vmax)
             {
                 if (IsSockComError())
                 {
@@ -11621,7 +11703,7 @@ public class Robot
                 }
                 try
                 {
-                    Object[] params = new Object[] {status, asaptiveFlag, interfereDragFlag, M, B, K, F, Fmax, Vmax};
+                    Object[] params = new Object[] {status, asaptiveFlag, interfereDragFlag,ingularityConstraintsFlag, M, B, K, F, Fmax, Vmax};
                     int rtn = (int)client.execute("EndForceDragControl" , params);
                     if (log != null)
                     {
@@ -12652,61 +12734,61 @@ public class Robot
              * @param   weaveNum 摆动编号
              * @return  错误码
              */
-//            public int WeaveChangeStart(int weaveNum)
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//                try
-//                {
-//                    Object[] params = new Object[] {weaveNum};
-//                    int rtn = (int)client.execute("WeaveChangeStart" , params);
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("WeaveChangeStart(" + weaveNum + ") : " + rtn);
-//                    }
-//                    return rtn;
-//                }
-//                catch (Throwable e)
-//                {
-//                    if (log != null)
-//                    {
-//                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
-//                    }
-//                    return RobotError.ERR_RPC_ERROR;
-//                }
-//            }
+            public int WeaveChangeStart(int weaveNum)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+                try
+                {
+                    Object[] params = new Object[] {weaveNum};
+                    int rtn = (int)client.execute("WeaveChangeStart" , params);
+                    if (log != null)
+                    {
+                        log.LogInfo("WeaveChangeStart(" + weaveNum + ") : " + rtn);
+                    }
+                    return rtn;
+                }
+                catch (Throwable e)
+                {
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+            }
 
             /**
              * @brief  摆动渐变结束
              * @return  错误码
              */
-//            public int WeaveChangeEnd()
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    int rtn = (int)client.execute("WeaveChangeEnd" , params);
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("WeaveChangeEnd() : " + rtn);
-//                    }
-//                    return rtn;
-//                }
-//                catch (Throwable e)
-//                {
-//                    if (log != null)
-//                    {
-//                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
-//                    }
-//                    return RobotError.ERR_RPC_ERROR;
-//                }
-//            }
+            public int WeaveChangeEnd()
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+                try
+                {
+                    Object[] params = new Object[] {};
+                    int rtn = (int)client.execute("WeaveChangeEnd" , params);
+                    if (log != null)
+                    {
+                        log.LogInfo("WeaveChangeEnd() : " + rtn);
+                    }
+                    return rtn;
+                }
+                catch (Throwable e)
+                {
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+            }
 
             /**
              * @brief 扩展IO-配置焊机气体检测信号
@@ -12976,6 +13058,84 @@ public class Robot
             if (log != null)
             {
                 log.LogInfo("SetStaticCollisionOnOff(" + status + ") : " + rtn);
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief  自定义碰撞检测阈值功能开始，设置关节端和TCP端的碰撞检测阈值
+     * @param   flag 1-仅关节检测开启；2-仅TCP检测开启；3-关节和TCP检测同时开启
+     * @param   jointDetectionThreshould 关节碰撞检测阈值 j1-j6
+     * @param   tcpDetectionThreshould  TCP碰撞检测阈值，xyzabc
+     * @param   block 0-非阻塞；1-阻塞
+     * @return  错误码
+     */
+    public int CustomCollisionDetectionStart(int flag, double[] jointDetectionThreshould, double[] tcpDetectionThreshould, int block)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try
+        {
+            Object[] params1 = new Object[]{jointDetectionThreshould[0],jointDetectionThreshould[1],jointDetectionThreshould[2],
+                                            jointDetectionThreshould[3],jointDetectionThreshould[4],jointDetectionThreshould[5]};
+            Object[] params2 = new Object[]{tcpDetectionThreshould[0],tcpDetectionThreshould[1],tcpDetectionThreshould[2],
+                                            tcpDetectionThreshould[3],tcpDetectionThreshould[4],tcpDetectionThreshould[5]};
+            Object[] params = new Object[] {flag,params1,params2,block};
+            int rtn =(int)client.execute("CustomCollisionDetectionStart" , params);
+            if (log != null)
+            {
+                log.LogInfo("CustomCollisionDetectionStart(" + flag + ") : " + rtn);
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief  自定义碰撞检测阈值功能关闭
+     * @return  错误码
+     */
+    public int CustomCollisionDetectionEnd()
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try
+        {
+            Object[] params = new Object[] {};
+            int rtn =(int)client.execute("CustomCollisionDetectionEnd" , params);
+            if (log != null)
+            {
+                log.LogInfo("CustomCollisionDetectionEnd() : " + rtn);
             }
             return rtn;
         }
@@ -14970,7 +15130,6 @@ public class Robot
             }
             return RobotError.ERR_RPC_ERROR;
         }
-
     }
 
     public int GetSafetyCode()
@@ -14982,6 +15141,7 @@ public class Robot
         }
         return 0;
     }
+
     /**
      * 截取byte数组   不改变原数组
      * @param b 原数组
@@ -15014,7 +15174,6 @@ public class Robot
             System.out.println("Got an exception in Sleep!  :  " +  e.getMessage());
         }
     }
-
 
 }
 

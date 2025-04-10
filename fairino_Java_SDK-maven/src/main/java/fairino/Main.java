@@ -1,15 +1,18 @@
 package fairino;
 
+import sun.security.krb5.internal.crypto.Des;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Scanner;
 
 
 public class Main {
     public static void main(String[] args) throws InterruptedException {
 
         Robot robot = new Robot();
-        robot.SetReconnectParam(true,20,500);//设置重连次数、间隔
+        robot.SetReconnectParam(true,100,200);//设置重连次数、间隔
         robot.LoggerInit(FrLogType.DIRECT, FrLogLevel.INFO, "D://log", 10, 10);
         int rtn = robot.RPC("192.168.58.2");
         if(rtn == 0)
@@ -145,6 +148,79 @@ public class Main {
 
 //        TestArcWeldTraceChange(robot);//电弧跟踪控制
 //        TestWeaveChange(robot);//摆动渐变测试
+
+//        TestTrajectoryLA(robot);//测试轨迹预处理(轨迹前瞻)
+//        CustomCollisionTest(robot);//自定义碰撞检测阈值功能开始
+
+//        reconnect_test(robot);//测试重连
+//        testSmooth(robot);
+
+        //测试
+//        ROBOT_STATE_PKG pkg=new ROBOT_STATE_PKG();//状态结构体
+//        String err1=new String();
+//        while (true)
+//        {
+//            auto start = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+//            rtn = robot.LuaUpload("D://zUP/27.lua");
+//            auto end = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+//            cout << "file upload time is : " << (end - start) <<  "    rtn is " << rtn <<endl;
+
+//            long start = System.currentTimeMillis();
+//
+//
+//            rtn = robot.LuaUpload("D://zUP/27.lua",err1);
+//            // 获取当前时间（毫秒）
+//            long end = System.currentTimeMillis();
+//
+//            // 输出上传时间和返回值
+//            System.out.println("file upload time is : " + (end - start) + "    rtn is " + rtn);
+//
+//            robot.Sleep(100);
+//        }
+
+
+//        while (true)
+//        {
+//            DescPose p1Desc=new DescPose(327.604, -104.449, 469.385, -170.284, 2.548, -75.248);
+//            JointPos p1Joint=new JointPos(-1.953, -64.856, -112.831, -83.705, 95.191, -16.097);
+//
+//            DescPose p2Desc=new DescPose(305.959, 260.947, 408.152, 177.966, 0.257, -18.624);
+//            JointPos p2Joint=new JointPos(55.276, -76.083, -111.563, -84.379, 89.683, -16.099);
+//
+//            ExaxisPos exaxisPos=new ExaxisPos(0.0, 0.0, 0.0, 0.0);
+//            DescPose offdese=new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+//            rtn = robot.MoveL(p1Joint, p1Desc, 0, 0, 50, 100, 100, -1, exaxisPos, 0, 0, offdese,0,10);
+//            if (rtn != 0)
+//            {
+//                System.out.println("moveL rtn is: "+ rtn);
+//                break;
+//            }
+//            rtn = robot.MoveL(p2Joint, p2Desc, 0, 0, 50, 100, 100, -1, exaxisPos, 0, 0, offdese,0,10);
+//            if (rtn != 0)
+//            {
+//                System.out.println("moveL rtn is: "+ rtn);
+//                break;
+//            }
+//        }
+//
+//        int flag=0;
+//        while (true)
+//        {
+//            if(flag<50){
+//                flag++;
+//            }
+//            if(flag==50){
+//                robot.ResetAllError();//清除错误
+//                robot.Sleep(500);
+//                flag=100;
+//            }
+//
+//            pkg=robot.GetRobotRealTimeState();
+//            System.out.println("main code is "+pkg.main_code+",  sub code is:  " +pkg.sub_code );
+//
+//            robot.Sleep(100);
+//        }
+
         robot.CloseRPC();//关闭连接
 
 //        while (true)
@@ -157,6 +233,112 @@ public class Main {
 //        JointPos pos = new JointPos();
 //        robot.GetActualJointPosDegree(1, pos);
         //System.out.println("J1: " + Double.toString(pos.J1) + "   J2: " + Double.toString(pos.J2) +"    J3: " + Double.toString(pos.J3) +"J4: "  + Double.toString(pos.J4) + "J5: " + Double.toString(pos.J5) +"J6: " + Double.toString(pos.J6));
+    }
+
+    //逆运动学测试
+    public static void TestInverseKen(Robot robot)
+    {
+        DescPose dcs1=new DescPose(32.316, -232.029, 1063.415, 90.159, 18.376, 36.575);
+        DescPose dcs2=new DescPose(105.25, -170.914, 1076.283, 87.032, 25.94, 54.644);
+        DescPose dcs3=new DescPose(79.164, 81.645, 1045.609, 133.691, -73.265, 162.726);
+        DescPose dcs4=new DescPose(298.779, -104.112, 298.242, 179.631, -0.628, -166.481);
+        JointPos inverseRtn = new JointPos(){};
+
+//        robot.GetInverseKin(0, dcs1, -1, inverseRtn);
+//        System.out.println("dcs1 getinverse rtn is "+inverseRtn.J1+","+inverseRtn.J2+","+inverseRtn.J3+","+
+//                inverseRtn.J4+","+inverseRtn.J5+","+inverseRtn.J6);
+//        robot.GetInverseKin(0, dcs2, -1, inverseRtn);
+//        System.out.println("dcs2 getinverse rtn is "+inverseRtn.J1+","+inverseRtn.J2+","+inverseRtn.J3+","+
+//                inverseRtn.J4+","+inverseRtn.J5+","+inverseRtn.J6);
+//        robot.GetInverseKin(0, dcs3, -1, inverseRtn);
+//        System.out.println("dcs3 getinverse rtn is "+inverseRtn.J1+","+inverseRtn.J2+","+inverseRtn.J3+","+
+//                inverseRtn.J4+","+inverseRtn.J5+","+inverseRtn.J6);
+//        robot.GetInverseKin(0, dcs4, -1, inverseRtn);
+//        System.out.println("dcs4 getinverse rtn is "+inverseRtn.J1+","+inverseRtn.J2+","+inverseRtn.J3+","+
+//                inverseRtn.J4+","+inverseRtn.J5+","+inverseRtn.J6);
+
+        JointPos jpos1=new JointPos(56.999, -59.002, 56.996, -96.552, 60.392, -90.005);
+        DescPose forwordResult = new DescPose(){};
+        robot.GetForwardKin(jpos1, forwordResult);
+        System.out.println("jpos1 forwordResult rtn is "+forwordResult.tran.x+","+forwordResult.tran.y+","+forwordResult.tran.z+","+
+                forwordResult.rpy.rx+","+forwordResult.rpy.ry+","+forwordResult.rpy.rz);
+    }
+
+    public static  void reconnect_test(Robot robot)//测试重连
+    {
+        int rtn=-1;
+        DescPose p1Desc = new DescPose(-423.723, -145.123, 546.173, -161.851, -29.236, 150.755);
+        JointPos p1Joint = new JointPos(6.001, -103.515, 102.462, -122.922, -90.77, -59.761);
+
+        DescPose p2Desc = new DescPose(-458.433, -678.096, 290.075, -176.815, -6.699, -161.689);
+        JointPos p2Joint = new JointPos(48.905, -43.486, 53.364, -107.265, -90.655, -59.635);
+
+
+        ExaxisPos exaxisPos = new ExaxisPos(0, 0, 0, 0);
+        DescPose offdese = new DescPose(0, 0, 0, 0, 0, 0);
+        int i=0;
+        while(i<1000){
+            rtn=-1;
+            boolean flag=robot.isConnected();//连接是否断开
+            System.out.println("连接是否断开: "+flag);
+            robot.Sleep(200);
+//            while (flag==false)//没有断开
+//            {
+//                rtn=robot.MoveL(p1Joint, p1Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+//                rtn=robot.MoveL(p2Joint, p2Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+//                System.out.println("指令执行结果:"+rtn);
+//            }
+//            System.out.println("连接断开");
+//            i++;
+        }
+    }
+
+    private static void TestTrajectoryLA(Robot robot)
+    {
+
+        int rtn = 0;
+
+        String nameA = "/fruser/traj/A.txt";
+        String nameB = "/fruser/traj/B.txt";
+
+        rtn = robot.LoadTrajectoryLA(nameA, 2, 0.0, 0, 1.0, 100.0, 200.0, 1000.0);//B样条
+//        rtn = robot.LoadTrajectoryLA(nameA, 1, 2, 0, 2, 100.0, 200.0, 1000.0);
+
+//        rtn = robot.LoadTrajectoryLA(nameB, 0, 0, 0, 1, 100.0, 100.0, 1000.0);    // 直线拟合
+        System.out.println("LoadTrajectoryLA rtn is :"+ rtn);
+
+        DescPose startPos = new DescPose(0, 0, 0, 0, 0, 0);
+        robot.GetTrajectoryStartPose(nameA, startPos);
+
+        // MoveCart方法调用，假设参数类型和顺序与C++版本一致
+        robot.MoveCart(startPos, 1, 0, (float)100.0, (float)100.0, (float)100.0, -1, -1);
+
+        rtn = robot.MoveTrajectoryLA();
+        System.out.println("MoveTrajectoryLA rtn is: "+ rtn);
+    }
+
+    //自定义碰撞检测阈值功能开始
+    public static void CustomCollisionTest(Robot robot)
+    {
+        int[] safety = { 5,5,5,5,5,5 };
+        robot.SetCollisionStrategy(3, 1000, 150, 250, safety);
+        double[] jointDetectionThreshould= { 0.3, 0.3, 0.3, 0.3, 0.3, 0.3};
+        double[] tcpDetectionThreshould = { 60,60,60,60,60,60 };
+        int rtn = robot.CustomCollisionDetectionStart(3, jointDetectionThreshould, tcpDetectionThreshould, 0);
+
+        DescPose p1Desc=new DescPose(228.879, -503.594, 453.984, -175.580, 8.293, 171.267);
+        JointPos p1Joint=new JointPos(102.700, -85.333, 90.518, -102.365, -83.932, 22.134);
+
+        DescPose p2Desc=new DescPose(-333.302, -435.580, 449.866, -174.997, 2.017, 109.815);
+        JointPos p2Joint=new JointPos(41.862, -85.333, 90.526, -100.587, -90.014, 22.135);
+
+        ExaxisPos exaxisPos=new ExaxisPos(0.0, 0.0, 0.0, 0.0);
+        DescPose offdese=new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        for(int i=0;i<10;++i) {
+            robot.MoveL(p1Joint, p1Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+            robot.MoveL(p2Joint, p2Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        }
+        rtn = robot.CustomCollisionDetectionEnd();
     }
 
     private static void TestReWeld(Robot robot)
@@ -252,60 +434,59 @@ public class Main {
     }
 
     //电弧跟踪控制,测试用例
-//    public static void TestArcWeldTraceChange(Robot robot)
-//    {
-//        DescPose p1Desc=new DescPose(-72.912, -587.664, 31.849, 43.283, -6.731, 15.068);
-//        JointPos p1Joint=new JointPos(74.620, -80.903, 94.608, -109.882, -90.436, -13.432);
-//
-//        DescPose p2Desc=new DescPose( -104.915, -483.712, -25.231, 42.228, -6.572, 18.433);
-//        JointPos p2Joint=new JointPos(66.431, -92.875, 116.362, -120.516, -88.627, -24.731);
-//
-//        DescPose p3Desc=new DescPose(-242.834, -498.697, -23.681, 46.576, -5.286, 8.318);
-//        JointPos p3Joint=new JointPos( 57.153, -82.046, 104.060, -116.659, -92.478, -24.735 );
-//
-//        ExaxisPos exaxisPos=new ExaxisPos(0.0, 0.0, 0.0, 0.0);
-//        DescPose offdese=new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-//        robot.WeldingSetVoltage(1, 19, 0, 0);
-//        robot.WeldingSetCurrent(1, 190, 0, 0);
-//        robot.MoveJ(p1Joint, p1Desc, 1, 1, 100, 100, 100, exaxisPos, -1, 0, offdese);
-//        robot.MoveL(p2Joint, p2Desc, 1, 1, 100, 100, 50, -1, exaxisPos, 0, 0, offdese,0,10);
-//        robot.ARCStart(1, 0, 10000);
-//        robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 60, 0, 0, 4, 1, 10, 2, 2);
-//        robot.WeaveStart(0);
-//        robot.MoveL(p3Joint, p3Desc, 1, 1, 100, 100, 1, -1, exaxisPos, 0, 0, offdese,0,10);
-//        robot.WeaveEnd(0);
-//        robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 60, 0, 0, 4, 1, 10, 2, 2);
-//        robot.ARCEnd(1, 0, 10000);
-//    }
+    public static void TestArcWeldTraceChange(Robot robot)
+    {
+        DescPose p1Desc=new DescPose(-72.912, -587.664, 31.849, 43.283, -6.731, 15.068);
+        JointPos p1Joint=new JointPos(74.620, -80.903, 94.608, -109.882, -90.436, -13.432);
+
+        DescPose p2Desc=new DescPose( -104.915, -483.712, -25.231, 42.228, -6.572, 18.433);
+        JointPos p2Joint=new JointPos(66.431, -92.875, 116.362, -120.516, -88.627, -24.731);
+
+        DescPose p3Desc=new DescPose(-242.834, -498.697, -23.681, 46.576, -5.286, 8.318);
+        JointPos p3Joint=new JointPos( 57.153, -82.046, 104.060, -116.659, -92.478, -24.735 );
+
+        ExaxisPos exaxisPos=new ExaxisPos(0.0, 0.0, 0.0, 0.0);
+        DescPose offdese=new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        robot.WeldingSetVoltage(1, 19, 0, 0);
+        robot.WeldingSetCurrent(1, 190, 0, 0);
+        robot.MoveJ(p1Joint, p1Desc, 1, 1, 100, 100, 100, exaxisPos, -1, 0, offdese);
+        robot.MoveL(p2Joint, p2Desc, 1, 1, 100, 100, 50, -1, exaxisPos, 0, 0, offdese,0,10);
+        robot.ARCStart(1, 0, 10000);
+        robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 60, 0, 0, 4, 1, 10, 2, 2);
+        robot.WeaveStart(0);
+        robot.MoveL(p3Joint, p3Desc, 1, 1, 100, 100, 1, -1, exaxisPos, 0, 0, offdese,0,10);
+        robot.WeaveEnd(0);
+        robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 60, 0, 0, 4, 1, 10, 2, 2);
+        robot.ARCEnd(1, 0, 10000);
+    }
 
     //摆动渐变-测试用例
-//    public static void TestWeaveChange(Robot robot)
-//    {
-//        DescPose p1Desc=new DescPose(-72.912, -587.664, 31.849, 43.283, -6.731, 15.068);
-//        JointPos p1Joint=new JointPos(74.620, -80.903, 94.608, -109.882, -90.436, -13.432);
-//
-//        DescPose p2Desc=new DescPose(-104.915, -483.712, -25.231, 42.228, -6.572, 18.433);
-//        JointPos p2Joint=new JointPos(66.431, -92.875, 116.362, -120.516, -88.627, -24.731);
-//
-//        DescPose p3Desc=new DescPose(-240.651, -483.840, -7.161, 46.577, -5.286, 8.318);
-//        JointPos p3Joint=new JointPos(56.457, -84.796, 104.618, -114.497, -92.422, -25.430);
-//
-//        ExaxisPos exaxisPos=new ExaxisPos(0.0, 0.0, 0.0, 0.0);
-//        DescPose offdese=new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-//        robot.WeldingSetVoltage(1, 19, 0, 0);
-//        robot.WeldingSetCurrent(1, 190, 0, 0);
-//        robot.MoveJ(p1Joint, p1Desc, 1, 1, 100, 100, 100, exaxisPos, -1, 0, offdese);
-//        robot.MoveL(p2Joint, p2Desc, 1, 1, 100, 100, 50, -1, exaxisPos, 0, 0, offdese,0,10);
-//        robot.ARCStart(1, 0, 10000);
-//        robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
-//        robot.WeaveStart(0);
-//        robot.WeaveChangeStart(1);
-//        robot.MoveL(p3Joint, p3Desc, 1, 1, 100, 100, 1, -1, exaxisPos, 0, 0, offdese,0,10);
-//        robot.WeaveChangeEnd();
-//        robot.WeaveEnd(0);
-//        robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
-//        robot.ARCEnd(1, 0, 10000);
-//    }
+    public static void TestWeaveChange(Robot robot) {
+        DescPose p1Desc = new DescPose(-72.912, -587.664, 31.849, 43.283, -6.731, 15.068);
+        JointPos p1Joint = new JointPos(74.620, -80.903, 94.608, -109.882, -90.436, -13.432);
+
+        DescPose p2Desc = new DescPose(-104.915, -483.712, -25.231, 42.228, -6.572, 18.433);
+        JointPos p2Joint = new JointPos(66.431, -92.875, 116.362, -120.516, -88.627, -24.731);
+
+        DescPose p3Desc = new DescPose(-240.651, -483.840, -7.161, 46.577, -5.286, 8.318);
+        JointPos p3Joint = new JointPos(56.457, -84.796, 104.618, -114.497, -92.422, -25.430);
+
+        ExaxisPos exaxisPos = new ExaxisPos(0.0, 0.0, 0.0, 0.0);
+        DescPose offdese = new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        robot.WeldingSetVoltage(1, 19, 0, 0);
+        robot.WeldingSetCurrent(1, 190, 0, 0);
+        robot.MoveJ(p1Joint, p1Desc, 1, 1, 100, 100, 100, exaxisPos, -1, 0, offdese);
+        robot.MoveL(p2Joint, p2Desc, 1, 1, 100, 100, 50, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        robot.ARCStart(1, 0, 10000);
+        robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
+        robot.WeaveStart(0);
+        robot.WeaveChangeStart(1);
+        robot.MoveL(p3Joint, p3Desc, 1, 1, 100, 100, 1, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        robot.WeaveChangeEnd();
+        robot.WeaveEnd(0);
+        robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
+        robot.ARCEnd(1, 0, 10000);
+    }
 
     public static void TestTCP6(Robot robot)
     {
@@ -350,8 +531,8 @@ public class Main {
         robot.SetToolPoint(6);
         robot.ComputeTool(coordRtn);
         System.out.println("ComputeTool :"+rtn+",coord is :"+coordRtn.tran.x+","+ coordRtn.tran.y+","+ coordRtn.tran.z+","+ coordRtn.rpy.rx+","+ coordRtn.rpy.ry+","+ coordRtn.rpy.rz);
-
     }
+
     public static void TestWObj(Robot robot)
     {
         DescPose p1Desc=new DescPose(-275.046, -293.122, 28.747, 174.533, -1.301, -112.101);
@@ -1523,14 +1704,14 @@ public class Main {
 
         JointPos JP1=new JointPos(117.408,-86.777,81.499,-87.788,-92.964,92.959);
         DescPose DP1 =new DescPose(327.359,-420.973,518.377,-177.199,3.209,114.449);
-//        JointPos JP2=new JointPos(72.515,-86.774,81.525,-87.724,-91.964,92.958);
-//        DescPose DP2=new DescPose(-63.512,-529.698,517.946,-178.192,3.07,69.554);
+        JointPos JP2=new JointPos(72.515,-86.774,81.525,-87.724,-91.964,92.958);
+        DescPose DP2=new DescPose(-63.512,-529.698,517.946,-178.192,3.07,69.554);
 //        JointPos JP3=new JointPos(89.281,-102.959,81.527,-69.955,-86.755,92.958);
 //        DescPose DP3=new DescPose();
 //        robot.GetForwardKin(JP3,DP3);
 
-//        robot.MoveJ(JP1, DP1,0, 0, 30, 30, 100, epos, -1, 0, offset_pos);//关节空间运动
-//        robot.MoveJ(JP2, DP2,0, 0, 30, 100, 100, epos, -1, 0, offset_pos);//关节空间运动
+        robot.MoveJ(JP1, DP1,0, 0, 30, 30, 100, epos, -1, 0, offset_pos);//关节空间运动
+        robot.MoveJ(JP2, DP2,0, 0, 30, 100, 100, epos, -1, 0, offset_pos);//关节空间运动
 //        robot.MoveL(JP2, DP2,0, 0, 30, 100, 100, -1, epos, 0, 0, offset_pos, 0, 100);//直线运动
 //        robot.MoveCart(DP2, 0, 0, 30.0, 100.0, 100.0, -1.0, -1);
 //        robot.MoveC(JP3, DP3, 0, 0, 30, 100, epos, 0, offset_pos, JP1, DP1, 0, 0, 100, 100, epos, 0, offset_pos, 100, -1);
@@ -2917,11 +3098,11 @@ public class Main {
         Object[] B = { 150.0, 150.0, 150.0, 5.0, 5.0, 1.0 };
         Object[] K = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
         Object[] F = { 10.0, 10.0, 10.0, 1.0, 1.0, 1.0 };
-        robot.EndForceDragControl(1, 0, 0, M, B, K, F, 50, 100);
+        robot.EndForceDragControl(1, 0, 0, 0,M, B, K, F, 50, 100);
 
         robot.Sleep(2000);
 
-        robot.EndForceDragControl(0, 0, 0, M, B, K, F, 50, 100);
+        robot.EndForceDragControl(0, 0, 0,0, M, B, K, F, 50, 100);
     }
 
     //肘部ARC，测试奇异点保护

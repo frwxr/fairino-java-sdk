@@ -47,4 +47,5 @@ public class RobotError
     public final static int ERR_POINTTABLE_NOTFOUND = 130;
     public final static int ERR_TEACHINGPOINTNOTFOUND = 143;  //示教点位信息不存在
     public final static int ERR_LUAFILENITFOUND = 144;        //LUA文件不存在
+
 }

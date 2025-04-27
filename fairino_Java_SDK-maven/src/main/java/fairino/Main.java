@@ -12,7 +12,7 @@ public class Main {
     public static void main(String[] args) throws InterruptedException {
 
         Robot robot = new Robot();
-        robot.SetReconnectParam(true,100,200);//设置重连次数、间隔
+        robot.SetReconnectParam(true,100,500);//设置重连次数、间隔
         robot.LoggerInit(FrLogType.DIRECT, FrLogLevel.INFO, "D://log", 10, 10);
         int rtn = robot.RPC("192.168.58.2");
         if(rtn == 0)
@@ -65,7 +65,7 @@ public class Main {
         //EndLuaUpload(robot);//17、Lua开发协议功能
         //TestEndLuaGripper(robot);//17、第二步 Lua夹爪
         //TestEndLuaForce(robot);//17
-        //RobotStateTest(robot);//18、状态反馈
+//        RobotStateTest(robot);//18、状态反馈
 
         //TestUDPWireSearch(robot);//焊丝寻位
         //TestTractorMove(robot);//测移动物体-小车的启停
@@ -147,13 +147,17 @@ public class Main {
 //        ExtAxisLaserTracking(robot);
 
 //        TestArcWeldTraceChange(robot);//电弧跟踪控制
-//        TestWeaveChange(robot);//摆动渐变测试
+        TestWeaveChange(robot);//摆动渐变测试
 
 //        TestTrajectoryLA(robot);//测试轨迹预处理(轨迹前瞻)
 //        CustomCollisionTest(robot);//自定义碰撞检测阈值功能开始
 
 //        reconnect_test(robot);//测试重连
-//        testSmooth(robot);
+//        testSmooth(robot);//加速度平滑
+
+//        TestInverseKen(robot);
+//        ConveyorTest(robot);//测试传送带
+//        ShutDownRobotOS(robot);
 
         //测试
 //        ROBOT_STATE_PKG pkg=new ROBOT_STATE_PKG();//状态结构体
@@ -235,6 +239,122 @@ public class Main {
         //System.out.println("J1: " + Double.toString(pos.J1) + "   J2: " + Double.toString(pos.J2) +"    J3: " + Double.toString(pos.J3) +"J4: "  + Double.toString(pos.J4) + "J5: " + Double.toString(pos.J5) +"J6: " + Double.toString(pos.J6));
     }
 
+    public static void ShutDownRobotOS(Robot robot)
+    {
+        int rtn=0;
+//        robot.ShutDownRobotOS();//测试开关机
+//
+//        rtn = robot.DataPackageDownload("D://zDOWN/");//数据备份包下载
+//        System.out.println("DataPackageDownload rtn is: "+rtn);
+//
+//        System.out.println("AllDataSourceDownload start");
+//        rtn = robot.AllDataSourceDownload("D://zDOWN/");//所有数据源下载
+//        System.out.println("AllDataSourceDownload rtn is: "+rtn);
+//
+//        System.out.println("RbLogDownload start");
+//        rtn = robot.RbLogDownload("D://zDOWN/");//控制器日志下载
+//        System.out.println("RbLogDownload rtn is: "+rtn);
+//
+//        String[] SN = new String[1];
+//        robot.GetRobotSN(SN);//获取控制箱SN码
+//        System.out.println("robot SN is :"+SN[0]);
+
+        for (int i = 0; i < 10; i++)
+        {
+            System.out.println("DataPackageDownload start");
+            rtn = robot.DataPackageDownload("D://zDOWN/");
+            System.out.println("DataPackageDownload rtn is: "+rtn+"  times  :"+i);
+        }
+
+        for (int i = 0; i < 10; i++)
+        {
+            System.out.println("AllDataSourceDownload start");
+            rtn = robot.AllDataSourceDownload("D://zDOWN/");
+            System.out.println("AllDataSourceDownload rtn is: "+rtn+"  times  :"+i);
+        }
+        for (int i = 0; i < 10; i++)
+        {
+            System.out.println("RbLogDownload start");
+            rtn = robot.RbLogDownload("D://zDOWN/");
+            System.out.println("RbLogDownload rtn is: "+rtn+"  times  :"+i);
+        }
+//        for (int i = 0; i < 10; i++)
+//        {
+//            String[] SN = new String[1];
+//            robot.GetRobotSN(SN);
+//            System.out.println("robot SN is :"+SN[0]+"  times  :"+i);
+//        }
+    }
+
+    public static void Trigger(Robot robot)
+    {
+        int i;
+
+        System.out.println("please input a number to trigger:");
+
+        Scanner scanner = new Scanner(System.in);
+        i = scanner.nextInt();
+
+        System.out.println(i);
+        int rtn = robot.ConveyorComDetectTrigger();
+        System.out.println("ConveyorComDetectTrigger retval is: "+rtn);
+        scanner.close();
+    }
+
+    public static int ConveyorTest(Robot  robot)//传送带跟踪检测
+    {
+
+        int retval = 0;
+
+
+        retval = 0;
+        //float param[6] = { 1,10000,200,0,0,20 };
+        //retval = robot->ConveyorSetParam(param, 0, 0, 0);
+        //printf("ConveyorSetParam retval is: %d\n", retval);
+
+        int index = 1;
+        int max_time = 30000;
+        int block = 0;
+        retval = 0;
+
+        /* 下面是一个传送带抓取流程 */
+        DescPose startdescPose=new DescPose(139.176, 4.717, 9.088, -179.999, -0.004, -179.990);
+        JointPos startjointPos=new JointPos(-34.129, -88.062, 97.839, -99.780, -90.003, -34.140);
+
+        DescPose homePose=new DescPose(139.177, 4.717, 69.084, -180.000, -0.004, -179.989);
+        JointPos homejointPos=new JointPos(-34.129, -88.618, 84.039, -85.423, -90.003, -34.140);
+
+        ExaxisPos exaxisPos=new ExaxisPos(0, 0, 0, 0);
+        DescPose offdese=new DescPose(0, 0, 0, 0, 0, 0);
+
+        retval = robot.MoveL(homejointPos, homePose, 1, 1, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 1, 1);
+        System.out.println("MoveL to safety retval is: "+retval);
+
+
+        Thread triggerThread = new Thread(() -> Trigger(robot));
+        triggerThread.setDaemon(true);
+        triggerThread.start();
+
+        retval = robot.ConveyorComDetect(1000 * 10);
+        System.out.println("ConveyorComDetect retval is: "+ retval);
+
+        retval = robot.ConveyorGetTrackData(2);
+        System.out.println("ConveyorGetTrackData retval is: "+retval);
+
+
+        retval = robot.ConveyorTrackStart(2);
+        System.out.println("ConveyorTrackStart retval is: "+retval);
+
+        robot.MoveL(startjointPos, startdescPose, 1, 1, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 1, 1);
+        robot.MoveL(startjointPos, startdescPose, 1, 1, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 1, 1);
+
+        retval = robot.ConveyorTrackEnd();
+        System.out.println("ConveyorTrackEnd retval is: "+retval);
+        robot.MoveL(homejointPos, homePose, 1, 1, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 1, 1);
+
+        return 0;
+    }
+
     //逆运动学测试
     public static void TestInverseKen(Robot robot)
     {
@@ -262,6 +382,56 @@ public class Main {
         robot.GetForwardKin(jpos1, forwordResult);
         System.out.println("jpos1 forwordResult rtn is "+forwordResult.tran.x+","+forwordResult.tran.y+","+forwordResult.tran.z+","+
                 forwordResult.rpy.rx+","+forwordResult.rpy.ry+","+forwordResult.rpy.rz);
+    }
+
+    public static void testSmooth(Robot robot){//测试平滑
+        JointPos JP1 = new JointPos(88.927,-85.834,80.289,-85.561,-91.388,108.718);
+        DescPose DP1 =new DescPose(88.739,-527.617,514.939,-179.039,1.494,70.209);
+
+        JointPos JP2 =new JointPos(27.036,-83.909,80.284,-85.579,-90.027,108.604);
+        DescPose DP2 = new DescPose(-433.125,-334.428,497.139,-179.723,-0.745,8.437);
+
+        JointPos JP3 =new JointPos(60.219,-94.324,62.906,-62.005,-87.159,108.598);
+        DescPose DP3 =new DescPose(-112.215,-409.323,686.497,176.217,2.338,41.625);
+
+        ExaxisPos exaxisPos=new ExaxisPos(0, 0, 0, 0);
+        DescPose offdese=new DescPose(0, 0, 0, 0, 0, 0);
+
+        DescPose p1Desc=new DescPose(228.879, -503.594, 453.984, -175.580, 8.293, 171.267);
+        JointPos p1Joint=new JointPos(102.700, -85.333, 90.518, -102.365, -83.932, 22.134);
+
+        DescPose p2Desc=new DescPose(-333.302, -435.580, 449.866, -174.997, 2.017, 109.815);
+        JointPos p2Joint=new JointPos(41.862, -85.333, 90.526, -100.587, -90.014, 22.135);
+
+
+        int error = robot.AccSmoothStart(false);
+
+        System.out.println("AccSmoothStart return:"+error);
+
+        robot.MoveL(p1Joint, p1Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        robot.MoveL(p2Joint, p2Desc, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+
+
+        //MoveJ
+//        robot.MoveJ(JP1, DP1, 0, 0, 100, 100, 100, exaxisPos, -1, 0, offdese);
+//        robot.MoveJ(JP2, DP2, 0, 0, 100, 100, 100, exaxisPos, -1, 0, offdese);
+//        robot.MoveJ(JP1, DP1, 0, 0, 100, 100, 100, exaxisPos, -1, 0, offdese);
+//        robot.MoveJ(JP2, DP2, 0, 0, 100, 100, 100, exaxisPos, -1, 0, offdese);
+
+        //MoveL
+//        robot.MoveL(JP1, DP1, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+//        robot.MoveL(JP2, DP2, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+//        robot.MoveL(JP1, DP1, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+//        robot.MoveL(JP2, DP2, 0, 0, 100, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
+
+        //MoveC
+//        robot.MoveC(JP3, DP3, 0, 0, 30, 100, exaxisPos, 0, offdese, JP1, DP1, 0, 0, 100, 100, exaxisPos, 0, offdese, 100, -1);
+//        robot.MoveC(JP3, DP3, 0, 0, 30, 100, exaxisPos, 0, offdese, JP2, DP2, 0, 0, 100, 100, exaxisPos, 0, offdese, 100, -1);
+
+        //Circle
+//        robot.Circle(JP3, DP3, 0, 0, 100, 100.0, exaxisPos, JP2, DP2, 0, 0, 100.0, 100.0, exaxisPos, 100.0, 0, offdese);
+
+        error = robot.AccSmoothEnd(false);
     }
 
     public static  void reconnect_test(Robot robot)//测试重连
@@ -298,23 +468,26 @@ public class Main {
 
         int rtn = 0;
 
-        String nameA = "/fruser/traj/A.txt";
+        String nameA = "/fruser/traj/testA.txt";
         String nameB = "/fruser/traj/B.txt";
+
+        robot.TrajectoryJDelete("testA.txt");//删除轨迹文件
+        robot.TrajectoryJUpLoad("D://zUP/testA.txt");
 
         rtn = robot.LoadTrajectoryLA(nameA, 2, 0.0, 0, 1.0, 100.0, 200.0, 1000.0);//B样条
 //        rtn = robot.LoadTrajectoryLA(nameA, 1, 2, 0, 2, 100.0, 200.0, 1000.0);
 
 //        rtn = robot.LoadTrajectoryLA(nameB, 0, 0, 0, 1, 100.0, 100.0, 1000.0);    // 直线拟合
-        System.out.println("LoadTrajectoryLA rtn is :"+ rtn);
+//        System.out.println("LoadTrajectoryLA rtn is :"+ rtn);
 
-        DescPose startPos = new DescPose(0, 0, 0, 0, 0, 0);
-        robot.GetTrajectoryStartPose(nameA, startPos);
+//        DescPose startPos = new DescPose(0, 0, 0, 0, 0, 0);
+//        robot.GetTrajectoryStartPose(nameA, startPos);
 
         // MoveCart方法调用，假设参数类型和顺序与C++版本一致
-        robot.MoveCart(startPos, 1, 0, (float)100.0, (float)100.0, (float)100.0, -1, -1);
+//        robot.MoveCart(startPos, 1, 0, (float)100.0, (float)100.0, (float)100.0, -1, -1);
 
-        rtn = robot.MoveTrajectoryLA();
-        System.out.println("MoveTrajectoryLA rtn is: "+ rtn);
+//        rtn = robot.MoveTrajectoryLA();
+//        System.out.println("MoveTrajectoryLA rtn is: "+ rtn);
     }
 
     //自定义碰撞检测阈值功能开始
@@ -462,30 +635,30 @@ public class Main {
 
     //摆动渐变-测试用例
     public static void TestWeaveChange(Robot robot) {
-        DescPose p1Desc = new DescPose(-72.912, -587.664, 31.849, 43.283, -6.731, 15.068);
-        JointPos p1Joint = new JointPos(74.620, -80.903, 94.608, -109.882, -90.436, -13.432);
+        DescPose p1Desc = new DescPose(119.177,-441.689,141.839,176.589,0.429,-164.096);
+        JointPos p1Joint = new JointPos(92.385,-85.428,120.698,-121.854,-90.376,-13.519);
 
-        DescPose p2Desc = new DescPose(-104.915, -483.712, -25.231, 42.228, -6.572, 18.433);
-        JointPos p2Joint = new JointPos(66.431, -92.875, 116.362, -120.516, -88.627, -24.731);
+        DescPose p2Desc = new DescPose(-266.579,-405.885,144.155,178.329,-2.696,149.434);
+        JointPos p2Joint = new JointPos(45.845,-82.478,117.685,-124.215,-93.014,-13.524);
 
-        DescPose p3Desc = new DescPose(-240.651, -483.840, -7.161, 46.577, -5.286, 8.318);
-        JointPos p3Joint = new JointPos(56.457, -84.796, 104.618, -114.497, -92.422, -25.430);
+//        DescPose p3Desc = new DescPose(-243.249,-655.089,182.985,178.35,0.019,164.815);
+//        JointPos p3Joint = new JointPos(61.289,-53.089,84.529,-119.832,-90.366,-13.518);
 
         ExaxisPos exaxisPos = new ExaxisPos(0.0, 0.0, 0.0, 0.0);
         DescPose offdese = new DescPose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        robot.WeldingSetVoltage(1, 19, 0, 0);
-        robot.WeldingSetCurrent(1, 190, 0, 0);
-        robot.MoveJ(p1Joint, p1Desc, 1, 1, 100, 100, 100, exaxisPos, -1, 0, offdese);
-        robot.MoveL(p2Joint, p2Desc, 1, 1, 100, 100, 50, -1, exaxisPos, 0, 0, offdese, 0, 10);
-        robot.ARCStart(1, 0, 10000);
-        robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
+        robot.WeldingSetVoltage(0, 19, 0, 0);
+        robot.WeldingSetCurrent(0, 190, 0, 0);
+        robot.MoveJ(p2Joint, p2Desc, 1, 0, 100, 100, 100, exaxisPos, -1, 0, offdese);
+//        robot.MoveL(p2Joint, p2Desc, 1, 0, 100, 100, 50, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        //robot.ARCStart(0, 0, 10000);
+        //robot.ArcWeldTraceControl(1, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
         robot.WeaveStart(0);
         robot.WeaveChangeStart(1);
-        robot.MoveL(p3Joint, p3Desc, 1, 1, 100, 100, 1, -1, exaxisPos, 0, 0, offdese, 0, 10);
+        robot.MoveL(p1Joint, p1Desc, 1, 0, 10, 100, 100, -1, exaxisPos, 0, 0, offdese, 0, 10);
         robot.WeaveChangeEnd();
         robot.WeaveEnd(0);
-        robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
-        robot.ARCEnd(1, 0, 10000);
+        //robot.ArcWeldTraceControl(0, 0, 1, 0.06, 5, 5, 60, 1, 0.06, 5, 5, 80, 0, 0, 4, 1, 10, 0, 0);
+        //robot.ARCEnd(0, 0, 10000);
     }
 
     public static void TestTCP6(Robot robot)
@@ -754,7 +927,7 @@ public class Main {
         System.out.println("ConveyorPointBRecord: rtn " + rtn);
 
         //配置传送带
-        robot.ConveyorSetParam(1, 10000, 2.0, 1, 1, 20);
+        robot.ConveyorSetParam(1, 10000, 2.0, 1, 1, 20,0,0,100);
         System.out.println("ConveyorSetParam: rtn  " + rtn);
 
 

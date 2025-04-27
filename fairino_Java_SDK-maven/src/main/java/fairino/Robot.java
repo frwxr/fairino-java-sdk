@@ -103,7 +103,7 @@ public class Robot
             config = new XmlRpcClientConfigImpl();
             config.setServerURL(new URL("http://" + ip +":20003/RPC2"));
             config.setEnabledForExtensions(true);
-            config.setConnectionTimeout(100);
+            config.setConnectionTimeout(1000000);
             client = new XmlRpcClient();
             client.setConfig(config);
             sockErr = RobotError.ERR_SUCCESS;
@@ -7281,9 +7281,12 @@ public class Robot
              * @param wpAxis 工件坐标系编号 针对跟踪运动功能选择工件坐标系编号，跟踪抓取、TPD跟踪设为0
              * @param vision 是否配视觉  0 不配  1 配
              * @param speedRadio 速度比  针对传送带跟踪抓取选项（1-100）  其他选项默认为1
+             * @param followType 跟踪运动类型，0-跟踪运动；1-追检运动
+             * @param startDis 追检抓取需要设置， 跟踪起始距离， -1：自动计算(工件到达机器人下方后自动追检)，单位mm， 默认值0
+             * @param endDis 追检抓取需要设置，跟踪终止距离， 单位mm， 默认值100
              * @return 错误码
              */
-            public int ConveyorSetParam(int encChannel, int resolution, double lead, int wpAxis, int vision, double speedRadio)
+            public int ConveyorSetParam(int encChannel, int resolution, double lead, int wpAxis, int vision, double speedRadio, int followType, int startDis, int endDis)
             {
                 if (IsSockComError())
                 {
@@ -7292,7 +7295,7 @@ public class Robot
 
                 try
                 {
-                    Object[] param = { encChannel, resolution, lead, wpAxis, vision, speedRadio};
+                    Object[] param = { encChannel, resolution, lead, wpAxis, vision, speedRadio, followType, startDis, endDis};
                     Object[] params = new Object[] {param};
                     int rtn = (int)client.execute("ConveyorSetParam" , params);
                     if (log != null)
@@ -9096,7 +9099,9 @@ public class Robot
                     }
 
                     TCPClient clientDownLoad = new TCPClient(robotIp, 20011);
+                    Sleep(500);
                     boolean bRtn = clientDownLoad.Connect();
+
                     if (!bRtn)
                     {
                         if (log != null)
@@ -9104,18 +9109,20 @@ public class Robot
                             log.LogInfo("download file connect fail");
                         }
                         clientDownLoad.Close();
+                        System.out.println("connect fail");
                         return (int)RobotError.ERR_OTHER;
                     }
+
                     byte[] totalbuffer = new byte[1024 * 1024 * 50];//50Mb
                     int totalSize = 0;
                     String recvMd5 = "";
                     int recvSize = 0;
                     boolean findHeadFlag = false;
 
+                    int cur=1;
                     while (true)
                     {
                         byte[] buffer = new byte[1024 * 1024 * 50];//50M
-                        Sleep(100);
                         int num = clientDownLoad.Recv(buffer);
                         if (num < 1)
                         {
@@ -9135,12 +9142,12 @@ public class Robot
                         {
                             findHeadFlag = true;
                         }
-
-                        if (findHeadFlag && totalSize >= 12 + 32)
+                        if (findHeadFlag && totalSize >= 14 + 32)
                         {
-                            String fileSizeStr = new String(subByte(totalbuffer, 4, 8));
+                            String fileSizeStr = new String(subByte(totalbuffer, 4, 10));
+                            fileSizeStr = fileSizeStr.trim();
                             recvSize = Integer.parseInt(fileSizeStr);
-                            recvMd5 = new String(subByte(totalbuffer, 12, 32));
+                            recvMd5 = new String(subByte(totalbuffer, 14, 32));
                         }
 
                         if (findHeadFlag && totalSize == recvSize)
@@ -9150,7 +9157,7 @@ public class Robot
 
                     }
 
-                    byte[] fileBuffer = subByte(totalbuffer, 12 + 32, totalSize - 16 - 32);
+                    byte[] fileBuffer = subByte(totalbuffer, 14 + 32, totalSize - 18 - 32);
 
                     File saveFile = new File(saveFilePath + fileName);
                     if(!saveFile.exists())
@@ -9195,6 +9202,136 @@ public class Robot
                     return RobotError.ERR_RPC_ERROR;
                 }
             }
+
+    private int FileDownLoad002(int fileType, String fileName, String saveFilePath) {
+        if (IsSockComError()) {
+            return sockErr;
+        }
+
+        try {
+            // 检查文件路径有效性
+            File savePathF = new File(saveFilePath);
+            if (!savePathF.exists()) {
+                return (int)RobotError.ERR_SAVE_FILE_PATH_NOT_FOUND;
+            }
+
+            // 发起RPC请求
+            Object[] params = new Object[]{fileType, fileName};
+            int rtn = (int)client.execute("FileDownload", params);
+            if (rtn != 0) {
+                return rtn;
+            }
+
+            // 创建TCP客户端并连接
+            TCPClient clientDownLoad = new TCPClient(robotIp, 20011);
+            Sleep(500);
+            // 设置合理的超时时间（15秒）
+//            clientDownLoad.setTimeouts(5000, 15000, 5000);
+
+            if (!clientDownLoad.Connect()) {
+                if (log != null) {
+                    log.LogInfo("download file connect fail");
+                }
+                clientDownLoad.Close();
+                return (int)RobotError.ERR_SOCKET_COM_FAILED;
+            }
+
+            // 初始化接收缓冲区
+            ByteArrayOutputStream totalBuffer = new ByteArrayOutputStream(50 * 1024 * 1024); // 50MB
+            String recvMd5 = "";
+            int recvSize = 0;
+            boolean findHeadFlag = false;
+            long startTime = System.currentTimeMillis();
+            final long DOWNLOAD_TIMEOUT_MS = 15000; // 15秒超时
+
+            // 接收数据循环
+            byte[] buffer = new byte[8 * 1024]; // 8KB缓冲区
+            while (true) {
+                // 检查超时
+                if (System.currentTimeMillis() - startTime > DOWNLOAD_TIMEOUT_MS) {
+                    if (log != null) {
+                        log.LogError("FileDownLoad", 0, "Download timeout");
+                    }
+                    return (int)RobotError.ERR_DOWN_LOAD_FILE_FAILED;
+                }
+
+                int num = clientDownLoad.Recv(buffer);
+                if (num < 0) {
+                    if (log != null) {
+                        log.LogError("FileDownLoad", 0, "Receive error, code: " + num);
+                    }
+                    return (int)RobotError.ERR_DOWN_LOAD_FILE_FAILED;
+                }
+
+                totalBuffer.write(buffer, 0, num);
+
+                // 检查数据头
+                if (!findHeadFlag && totalBuffer.size() > 4) {
+                    String head = new String(totalBuffer.toByteArray(), 0, 4);
+                    if (head.equals("/f/b")) {
+                        findHeadFlag = true;
+                    } else {
+                        if (log != null) {
+                            log.LogError("FileDownLoad", 0, "Invalid file header");
+                        }
+                        return (int)RobotError.ERR_DOWN_LOAD_FILE_FAILED;
+                    }
+                }
+
+                // 解析长度和MD5
+                if (findHeadFlag && totalBuffer.size() >= 14 + 32) {
+                    String fileSizeStr = new String(totalBuffer.toByteArray(), 4, 10).trim();
+                    try {
+                        recvSize = Integer.parseInt(fileSizeStr);
+                        recvMd5 = new String(totalBuffer.toByteArray(), 14, 32);
+                    } catch (NumberFormatException e) {
+                        if (log != null) {
+                            log.LogError("FileDownLoad", 0, "Invalid file size format");
+                        }
+                        return (int)RobotError.ERR_DOWN_LOAD_FILE_FAILED;
+                    }
+                }
+
+                // 检查是否接收完成
+                if (findHeadFlag && totalBuffer.size() == recvSize) {
+                    break;
+                }
+            }
+
+            // 提取文件内容（跳过头部14字节和MD5 32字节，以及尾部4字节）
+            byte[] totalBytes = totalBuffer.toByteArray();
+            byte[] fileContent = Arrays.copyOfRange(totalBytes, 14 + 32, totalBytes.length - 4);
+
+            // 写入文件
+            File saveFile = new File(saveFilePath + fileName);
+            try (FileOutputStream out = new FileOutputStream(saveFile)) {
+                out.write(fileContent);
+            }
+
+            // 校验MD5
+            String checkMd5 = computeMD5(saveFilePath + fileName).toLowerCase();
+            if (!checkMd5.equals(recvMd5)) {
+                saveFile.delete();
+                if (log != null) {
+                    log.LogError("FileDownLoad", 0, "MD5 check failed");
+                }
+                return (int)RobotError.ERR_DOWN_LOAD_FILE_CHECK_FAILED;
+            }
+
+            // 发送成功响应
+            clientDownLoad.Send("SUCCESS");
+            if (log != null) {
+                log.LogInfo("FileDownLoad(" + fileName + ", " + saveFilePath + ") : success");
+            }
+            return 0;
+
+        } catch (Throwable e) {
+            if (log != null) {
+                log.LogError("FileDownLoad", 0, "Exception: " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
 
             /**
              * @brief 上传文件
@@ -15132,6 +15269,187 @@ public class Robot
         }
     }
 
+    /**
+     * @brief  控制器日志下载
+     * @param  savePath 保存文件路径"D://zDown/"
+     * @return  错误码
+     */
+    public int RbLogDownload(String savePath)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        int errcode=0;
+        try {
+            Object[] params = new Object[] {};
+            errcode= (int)client.execute("RbLogDownloadPrepare" , params);
+            if (log != null)
+            {
+                log.LogInfo("RbLogDownloadPrepare(): " + errcode);
+            }
+            if(errcode!=0){
+                log.LogInfo("RbLogDownloadPrepare fail.");
+                return errcode;
+            }
+            log.LogInfo("RbLogDownloadPrepare success.");
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+        String fileName = "rblog.tar.gz";
+        errcode = FileDownLoad(1, fileName, savePath);
+        return errcode;
+    }
+
+    /**
+     * @brief 所有数据源下载
+     * @param savePath 保存文件路径"D://zDown/"
+     * @return  错误码
+     */
+    public int AllDataSourceDownload(String savePath)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        int errcode=0;
+        try {
+            Object[] params = new Object[] {};
+            errcode= (int)client.execute("AllDataSourceDownloadPrepare" , params);
+            if (log != null)
+            {
+                log.LogInfo("AllDataSourceDownloadPrepare(): " + errcode);
+            }
+            if(errcode!=0){
+                log.LogInfo("AllDataSourceDownloadPrepare fail.");
+                return errcode;
+            }
+            log.LogInfo("AllDataSourceDownloadPrepare success.");
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+        String fileName = "alldatasource.tar.gz";
+        errcode = FileDownLoad(2, fileName, savePath);
+        return errcode;
+    }
+
+    /**
+     * @brief 数据备份包下载
+     * @param savePath 保存文件路径"D://zDown/"
+     * @return  错误码
+     */
+    public int DataPackageDownload(String savePath)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        int errcode=0;
+        try {
+            Object[] params = new Object[] {};
+            errcode= (int)client.execute("DataPackageDownloadPrepare" , params);
+            if (log != null)
+            {
+                log.LogInfo("DataPackageDownloadPrepare(): " + errcode);
+            }
+            if(errcode!=0){
+                log.LogInfo("DataPackageDownloadPrepare fail.");
+                return errcode;
+            }
+            log.LogInfo("DataPackageDownloadPrepare success.");
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+        String fileName = "fr_user_data.tar.gz";
+        errcode = FileDownLoad(3, fileName, savePath);
+        return errcode;
+    }
+
+    /**
+     * @brief 获取控制箱SN码
+     * @param SNCode 控制箱SN码
+     * @return 错误码
+     */
+    public int GetRobotSN(String[] SNCode)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        int errcode=0;
+        try {
+            Object[] params = new Object[] {};
+            Object[] result = (Object[])client.execute("GetRobotSN" , params);
+            errcode=(int)result[0];
+            if (log != null)
+            {
+                log.LogInfo("GetRobotSN(): " + errcode);
+            }
+            if (0 == errcode)
+            {
+                SNCode[0] =(String)result[1];
+            }
+            return errcode;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 关闭机器人操作系统
+     * @return 错误码
+     */
+    public int ShutDownRobotOS()
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        int errcode=0;
+        try {
+            Object[] params = new Object[] {};
+            errcode= (int)client.execute("ShutDownRobotOS" , params);
+            if (log != null)
+            {
+                log.LogInfo("ShutDownRobotOS(): " + errcode);
+            }
+            return errcode;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+
     public int GetSafetyCode()
     {
         ROBOT_STATE_PKG pkg = GetRobotRealTimeState();
@@ -15141,6 +15459,174 @@ public class Robot
         }
         return 0;
     }
+
+    /**
+     * @brief 加速度平滑开启
+     * @param  saveFlag 是否断电保存
+     * @return  错误码
+     */
+    public int AccSmoothStart(boolean saveFlag)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+        int errcode = 0;
+
+        try {
+            int flag=saveFlag? 1 : 0;
+            Object[] params = new Object[] {flag};
+
+            errcode = (int)client.execute("AccSmoothStart" , params);
+            if (log != null)
+            {
+                log.LogInfo("AccSmoothStart(): " + errcode);
+            }
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+
+        ROBOT_STATE_PKG pkg = GetRobotRealTimeState();
+        if ((pkg.main_code != 0 || pkg.sub_code != 0) && errcode == 0)
+        {
+            errcode = 14;
+        }
+
+        return errcode;
+    }
+
+    /**
+     * @brief 加速度平滑关闭
+     * @param saveFlag 是否断电保存
+     * @return  错误码
+     */
+    public int AccSmoothEnd(boolean saveFlag)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            int flag=saveFlag? 1 : 0;
+            Object[] params = new Object[] {flag};
+
+            int rtn = (int)client.execute("AccSmoothEnd" , params);
+            if (log != null)
+            {
+                log.LogInfo("AccSmoothEnd(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 传送带通讯输入检测
+     * @param timeout 等待超时时间ms
+     * @return 错误码
+     */
+    public int ConveyorComDetect(int timeout)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {timeout};
+            int rtn = (int)client.execute("ConveryComDetect" , params);
+            if (log != null)
+            {
+                log.LogInfo("ConveryComDetect(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    // 类成员变量
+    private static int cnt = 0;
+    /**
+     * @brief 传送带通讯输入检测触发
+     * @return 错误码
+     */
+    public int ConveyorComDetectTrigger()
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        try {
+            int errcode = 0;
+
+            while (isSendCmd == true) //说明当前正在处理上一条指令
+            {
+                Thread.sleep(10);
+            }
+
+            sendBuf = "/f/bIII"+cnt+"III1149III25IIIConveryComDetectTrigger()III/b/f";
+            System.out.println(sendBuf);
+            clientCmd.Send(sendBuf);
+            byte[] recvBuf = new byte[1024];
+            clientCmd.Recv(recvBuf);
+            cnt++;
+            isSendCmd = true;  // 设置发送标志
+
+            System.out.println("ConveryComDetectTrigger() executed. Count: " + cnt);
+
+            if (log != null)
+            {
+                log.LogInfo("ConveryComDetectTrigger(): " + errcode);
+            }
+            return errcode;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
 
     /**
      * 截取byte数组   不改变原数组

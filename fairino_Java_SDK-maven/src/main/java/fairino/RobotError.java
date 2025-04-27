@@ -48,4 +48,13 @@ public class RobotError
     public final static int ERR_TEACHINGPOINTNOTFOUND = 143;  //示教点位信息不存在
     public final static int ERR_LUAFILENITFOUND = 144;        //LUA文件不存在
 
+    public final static int ERR_SOCKET_RECV_FAILED = -16;  /* socket接收失败 */
+    public final static int ERR_SOCKET_SEND_FAILED = -15;    /* socket发送失败 */
+    public final static int ERR_FILE_OPEN_FAILED = -14;    /* 文件打开失败 */
+    public final static int ERR_FILE_TOO_LARGE = -13;    /* 文件大小超限 */
+    public final static int ERR_UPLOAD_FILE_ERROR = -12;    /* 上传文件异常 */
+    public final static int ERR_FILE_NAME = -11;    /* 文件名称异常 */
+    public final static int ERR_DOWN_LOAD_FILE_WRITE_FAILED = -10;    /* 下载文件写入失败 */
+    public final static int ERR_DOWN_LOAD_FILE_CHECK_FAILED = -9;     /* 文件下载校验失败 */
+    public final static int ERR_DOWN_LOAD_FILE_FAILED = -8;     /* 文件下载失败 */
 }

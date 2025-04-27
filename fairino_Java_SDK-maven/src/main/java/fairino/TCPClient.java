@@ -119,7 +119,7 @@ public class TCPClient
             this.mOutputStream = mSocket.getOutputStream();
             this.mInputStream = mSocket.getInputStream();
             mSocket.setTcpNoDelay(true);
-            mSocket.setSoTimeout(reconnPeriod);
+            mSocket.setSoTimeout(reconnPeriod*100);
 
             this.isConnected = true;
             return this.isConnected;
@@ -178,7 +178,6 @@ public class TCPClient
             return -1;
         }
     }
-
 
     public int GetPkg(byte[] buf, int recvSize)
     {
@@ -302,7 +301,7 @@ public class TCPClient
         return -1;
     }
 
-    public int Recv(byte[] buffer) {
+    public int Recv11(byte[] buffer) {
         try
         {
             if (TCPClient.this.mInputStream == null)
@@ -310,6 +309,7 @@ public class TCPClient
                 return -1;
             }
             int available = TCPClient.this.mInputStream.available();
+
             if (available > 0)
             {
                 return this.mInputStream.read(buffer);
@@ -318,6 +318,20 @@ public class TCPClient
             {
                 return -1;
             }
+        }
+        catch (Throwable e)
+        {
+            System.out.println(e.getMessage());
+            return -1;
+        }
+    }
+    public int Recv(byte[] buffer) {
+        try {
+            if (TCPClient.this.mInputStream == null) {
+                return -1;
+            }
+            // 直接读取，依赖设置的读取超时
+            return this.mInputStream.read(buffer);
         }
         catch (Throwable e)
         {

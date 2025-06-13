@@ -51,7 +51,7 @@ public class Robot
 //
 //                while (robot_task_exit == 0)
 //                {
-//                    if (sockErr == RobotError.ERR_SUCCESS && sock_cli_state != null)//如果当前没出错
+//                    if (sockErr == RobotError.ERR_SUCCESS & sock_cli_state != null)//如果当前没出错
 //                    {
 //                        //打时间戳
 //                        UInt32 curtime = (UInt32)DateTime.UtcNow.TimeOfDay.TotalMilliseconds;
@@ -566,7 +566,7 @@ public class Robot
      * @param  speedPercent  允许降速阈值百分比[0-100]，默认10%
      * @return  错误码
      */
-    public int MoveL(JointPos joint_pos, DescPose desc_pos, int tool, int user, double vel, double acc, double ovl, double blendR, ExaxisPos epos, int search, int offset_flag, DescPose offset_pos, int overSpeedStrategy, int speedPercent)
+    public int MoveL(JointPos joint_pos, DescPose desc_pos, int tool, int user, double vel, double acc, double ovl, double blendR,ExaxisPos epos, int search, int offset_flag, DescPose offset_pos, int overSpeedStrategy, int speedPercent)
     {
         if (IsSockComError())
         {
@@ -626,10 +626,101 @@ public class Robot
             {
                 return MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
             }
-//            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
-//            {
-//                MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
-//            }
+            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
+            {
+                MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
+            }
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+            }
+            return (int) RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief  笛卡尔空间直线运动
+     * @param  joint_pos  目标关节位置,单位deg
+     * @param  desc_pos   目标笛卡尔位姿
+     * @param  tool  工具坐标号，范围[0~14]
+     * @param  user  工件坐标号，范围[0~14]
+     * @param  vel  速度百分比，范围[0~100]
+     * @param  acc  加速度百分比，范围[0~100],暂不开放
+     * @param  ovl  速度缩放因子，范围[0~100]
+     * @param  blendR [-1.0]-运动到位(阻塞)，[0~1000.0]-平滑半径(非阻塞)，单位mm
+     * @param  blendMode 过渡方式；0-内切过渡；1-角点过渡
+     * @param  epos  扩展轴位置，单位mm
+     * @param  search  0-不焊丝寻位，1-焊丝寻位
+     * @param  offset_flag  0-不偏移，1-基坐标系/工件坐标系下偏移，2-工具坐标系下偏移
+     * @param  offset_pos  位姿偏移量
+     * @param  overSpeedStrategy  超速处理策略，1-标准；2-超速时报错停止；3-自适应降速，默认为0
+     * @param  speedPercent  允许降速阈值百分比[0-100]，默认10%
+     * @return  错误码
+     */
+    public int MoveL(JointPos joint_pos, DescPose desc_pos, int tool, int user, double vel, double acc, double ovl, double blendR, int blendMode,ExaxisPos epos, int search, int offset_flag, DescPose offset_pos, int overSpeedStrategy, int speedPercent)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if(GetSafetyCode()!=0){
+            return GetSafetyCode();
+        }
+        try
+        {
+            int rtn = -1;
+            if (overSpeedStrategy > 1)
+            {
+                Object[] paramProtectStart = new Object[] {overSpeedStrategy, speedPercent};
+                rtn = (int)client.execute("JointOverSpeedProtectStart" , paramProtectStart);
+                if (log != null)
+                {
+                    log.LogInfo("JointOverSpeedProtectStart(" + overSpeedStrategy + "," + speedPercent + ") : " + rtn);
+                }
+                if (rtn != 0)
+                {
+                    return rtn;
+                }
+            }
+
+            Object[] joint = {joint_pos.J1, joint_pos.J2, joint_pos.J3, joint_pos.J4, joint_pos.J5, joint_pos.J6};
+            Object[] desc = { desc_pos.tran.x, desc_pos.tran.y, desc_pos.tran.z, desc_pos.rpy.rx, desc_pos.rpy.ry, desc_pos.rpy.rz };;
+            Object[] exteraxis = {epos.axis1, epos.axis2, epos.axis3, epos.axis4};
+            Object[] offect = { offset_pos.tran.x, offset_pos.tran.y, offset_pos.tran.z, offset_pos.rpy.rx, offset_pos.rpy.ry, offset_pos.rpy.rz };
+            Object[] params = new Object[] {joint, desc, tool, user, vel, acc, ovl, blendR,blendMode, exteraxis, search, offset_flag, offect};
+            rtn = (int)client.execute("MoveL" , params);
+            if (log != null)
+            {
+                log.LogInfo("MoveL(" + joint[0] + "," + joint[1] + "," + joint[2] + "," + joint[3] + "," + joint[4] + "," + joint[5] + "," + desc[0] + "," + desc[1] + "," + desc[2] + "," + desc[3] + "," + desc[4] + "," + desc[5] + "," + tool + "," + user + "," + vel + "," + acc + "," + ovl + "," + blendR +
+                        epos.axis1 + "," + epos.axis2 + "," + epos.axis3 + "," + epos.axis4 + "," + search + "," + offset_flag + "," + offect[0] + "," + offect[1] + "," + offect[2] + "," + offect[3] + "," + offect[4] + "," + offect[5] + ") : " + rtn);
+            }
+
+            if (overSpeedStrategy > 1)
+            {
+                Object[] paramProtectStart = new Object[] {};
+                rtn = (int)client.execute("JointOverSpeedProtectEnd" , params);
+                if (log != null)
+                {
+                    log.LogInfo("JointOverSpeedProtectEnd() : " + rtn);
+                }
+                if (rtn != 0)
+                {
+                    return rtn;
+                }
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if(!IsSockComError())
+            {
+                return MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR,epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
+            }
+            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
+            {
+                MoveL(joint_pos, desc_pos, tool, user, vel, acc, ovl, blendR, epos, search, offset_flag, offset_pos, overSpeedStrategy, speedPercent);
+            }
             if (log != null)
             {
                 log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
@@ -767,6 +858,77 @@ public class Robot
             if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
             {
                 Circle(joint_pos_p, desc_pos_p, ptool, puser, pvel, pacc, epos_p, joint_pos_t, desc_pos_t, ttool, tuser, tvel, tacc, epos_t, ovl, offset_flag, offset_pos);
+            }
+            else if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief  笛卡尔空间整圆运动
+     * @param  joint_pos_p  路径点1关节位置,单位deg
+     * @param  desc_pos_p   路径点1笛卡尔位姿
+     * @param  ptool  工具坐标号，范围[0~14]
+     * @param  puser  工件坐标号，范围[0~14]
+     * @param  pvel  速度百分比，范围[0~100]
+     * @param  pacc  加速度百分比，范围[0~100],暂不开放
+     * @param  epos_p  扩展轴位置，单位mm
+     * @param  joint_pos_t  路径点2关节位置,单位deg
+     * @param  desc_pos_t   路径点2笛卡尔位姿
+     * @param  ttool  工具坐标号，范围[0~14]
+     * @param  tuser  工件坐标号，范围[0~14]
+     * @param  tvel  速度百分比，范围[0~100]
+     * @param  tacc  加速度百分比，范围[0~100],暂不开放
+     * @param  epos_t  扩展轴位置，单位mm
+     * @param  ovl  速度缩放因子，范围[0~100]
+     * @param  offset_flag  0-不偏移，1-基坐标系/工件坐标系下偏移，2-工具坐标系下偏移
+     * @param  offset_pos  位姿偏移量
+     * @param  oacc 加速度百分比
+     * @param  blendR -1：阻塞；0~1000：平滑半径
+     * @return  错误码
+     */
+    public int Circle(JointPos joint_pos_p, DescPose desc_pos_p, int ptool, int puser, double pvel, double pacc, ExaxisPos epos_p, JointPos joint_pos_t, DescPose desc_pos_t, int ttool, int tuser, double tvel, double tacc, ExaxisPos epos_t, double ovl, int offset_flag, DescPose offset_pos, double oacc, double blendR)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        if(GetSafetyCode()!=0){
+            return GetSafetyCode();
+        }
+        try
+        {
+
+            Object[] jointP = {joint_pos_p.J1, joint_pos_p.J2, joint_pos_p.J3, joint_pos_p.J4, joint_pos_p.J5, joint_pos_p.J6};
+            Object[] descP = { desc_pos_p.tran.x, desc_pos_p.tran.y, desc_pos_p.tran.z, desc_pos_p.rpy.rx, desc_pos_p.rpy.ry, desc_pos_p.rpy.rz };
+            Object[] exteraxisP = {epos_p.axis1, epos_p.axis2, epos_p.axis3, epos_p.axis4};
+            Object[] offect = { offset_pos.tran.x, offset_pos.tran.y, offset_pos.tran.z, offset_pos.rpy.rx, offset_pos.rpy.ry, offset_pos.rpy.rz };
+            Object[] controlP = { ptool * 1.0, puser * 1.0, pvel, pacc };
+            Object[] jointT = {joint_pos_t.J1, joint_pos_t.J2, joint_pos_t.J3, joint_pos_t.J4, joint_pos_t.J5, joint_pos_t.J6};
+            Object[] descT = { desc_pos_t.tran.x, desc_pos_t.tran.y, desc_pos_t.tran.z, desc_pos_t.rpy.rx, desc_pos_t.rpy.ry, desc_pos_t.rpy.rz };
+            Object[] exteraxisT = {epos_t.axis1, epos_t.axis2, epos_t.axis3, epos_t.axis4};
+            Object[] controlT = { ttool * 1.0, tuser * 1.0, tvel, tacc };
+            Object[] ovl_offset={ovl,offset_flag*1.0};
+            Object[] controlR = { oacc, blendR};
+            Object[] params = new Object[] {jointP, descP, controlP, exteraxisP, jointT, descT, controlT, exteraxisT, ovl_offset, offect,controlR};
+            int rtn = (int)client.execute("Circle" , params);
+            if (log != null)
+            {
+                log.LogInfo("Circle(" + jointP[0] + "," + jointP[1] + "," + jointP[2] + "," + jointP[3] + "," + jointP[4] + "," + jointP[5] + "," + descP[0] + "," + descP[1] + "," + descP[2] + "," + descP[3] + "," + descP[4] + "," + descP[5] + "," + ptool + "," + puser + "," + pvel + "," + pacc + "," +
+                        epos_p.axis1 + "," + epos_p.axis2 + "," + epos_p.axis3 + "," + epos_p.axis4 + ",) " +
+                        jointT[0] + "," + jointT[1] + "," + jointT[2] + "," + jointT[3] + "," + jointT[4] + "," + jointT[5] + "," + descT[0] + "," + descT[1] + "," + descT[2] + "," + descT[3] + "," + descT[4] + "," + descT[5] + "," + ttool + "," + tuser + "," + tvel + "," + tacc + "," +
+                        epos_t.axis1 + "," + epos_t.axis2 + "," + epos_t.axis3 + "," + epos_t.axis4 + "," + ovl + "," + offset_flag + "," + offect[0] + "," + offect[1] + "," + offect[2] + "," + offect[3] + "," + offect[4] + "," + offect[5] + ","+oacc +","+blendR +" : " + rtn);
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if(e.getMessage().contains("Connection timed out") || e.getMessage().contains("connect timed out"))
+            {
+                Circle(joint_pos_p, desc_pos_p, ptool, puser, pvel, pacc, epos_p, joint_pos_t, desc_pos_t, ttool, tuser, tvel, tacc, epos_t, ovl, offset_flag, offset_pos,oacc,blendR);
             }
             else if (log != null)
             {
@@ -1606,105 +1768,100 @@ public class Robot
                 }
             }
 
-//            /**
-//             * @brief  获取控制箱数字量输入
-//             * @param  id  io编号，范围[0~15]
-//             * @param  block  0-阻塞，1-非阻塞
-//             * @param  level  0-低电平，1-高电平
-//             * @return  错误码
-//             */
-//            public int GetDI(int id, int block, int level)
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//
-//                int errcode = 0;
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    if (sockErr == RobotError.ERR_SUCCESS)
-//                    {
-//                        if (id >= 0 && id < 8)
-//                        {
-//                            level = (int)((robot_state_pkg.cl_dgt_input_l & (0x01 << id)) >> id);
-//                        }
-//                        else if (id >= 8 && id < 16)
-//                        {
-//                            id -= 8;
-//                            level = (int)((robot_state_pkg.cl_dgt_input_h & (0x01 << id)) >> id);
-//                        }
-//                        else
-//                        {
-//                            level = 0;
-//                            errcode = -1;
-//                        }
-//                     + "
-//                    else
-//                    {
-//                        errcode = sockErr;
-//                     + "
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("GetDI({id + ",{block + ",{level + ") : {errcode);
-//                    }
-//                    return errcode;
-//                }
-//                catch (Throwable e)
-//                {
-//                    return -1;
-//                }
-//            }
+            /**
+             * @brief  获取控制箱数字量输入
+             * @param  id  io编号，范围[0~15]
+             * @param  block  0-阻塞，1-非阻塞
+             * @param  level  0-低电平，1-高电平
+             * @return  错误码
+             */
+            public int GetDI(int id, int block, int[] level)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
 
-//            /**
-//             * @brief  获取工具数字量输入
-//             * @param  id  io编号，范围[0~1]
-//             * @param  block  0-阻塞，1-非阻塞
-//             * @param  level  0-低电平，1-高电平
-//             * @return  错误码
-//             */
-//            public int GetToolDI(int id, int block, int level)
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    int errcode = 0;
-//
-//                    if (sockErr == RobotError.ERR_SUCCESS)
-//                    {
-//                        if (id >= 0 && id < 2)
-//                        {
-//                            id += 1;
-//                            level = (int)((robot_state_pkg.tl_dgt_input_l & (0x01 << id)) >> id);
-//                        }
-//                        else
-//                        {
-//                            level = 0;
-//                            errcode = -1;
-//                        }
-//                    }
-//                    else
-//                    {
-//                        errcode = sockErr;
-//                    }
-//
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("GetToolDI({id + ",{block + ",{level + ") : {errcode);
-//                    }
-//                    return errcode;
-//                }
-//                catch (Throwable e)
-//                {
-//                    return -1;
-//                }
-//            }
+                int errcode = 0;
+                try
+                {
+                    ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+                    Object[] params = new Object[] {};
+                    if (sockErr == RobotError.ERR_SUCCESS) {
+                        if (id >= 0 && id < 8) {
+                            level[0] = (int) ((robot_state_pkg.cl_dgt_input_l & (0x01 << id)) >> id);
+                        } else if (id >= 8 && id < 16) {
+                            id -= 8;
+                            level[0] = (int) ((robot_state_pkg.cl_dgt_input_h & (0x01 << id)) >> id);
+                        } else {
+                            level[0] = 0;
+                            errcode = -1;
+                        }
+                    }
+                    else {
+                        errcode = sockErr;
+                    }
+                    if (log != null)
+                    {
+                        log.LogInfo("GetDI(id + "+block + ",level: "+errcode+")");
+                    }
+                    return errcode;
+                }
+                catch (Throwable e)
+                {
+                    return -1;
+                }
+            }
+
+            /**
+             * @brief  获取工具数字量输入
+             * @param  id  io编号，范围[0~1]
+             * @param  block  0-阻塞，1-非阻塞
+             * @param  level  0-低电平，1-高电平
+             * @return  错误码
+             */
+            public int GetToolDI(int id, int block, int[] level)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+
+                try
+                {
+                    ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+                    Object[] params = new Object[] {};
+                    int errcode = 0;
+
+                    if (sockErr == RobotError.ERR_SUCCESS)
+                    {
+                        if (id >= 0 && id < 2)
+                        {
+                            id += 1;
+                            level[0] = (int)((robot_state_pkg.tl_dgt_input_l & (0x01 << id)) >> id);
+                        }
+                        else
+                        {
+                            level[0] = 0;
+                            errcode = -1;
+                        }
+                    }
+                    else
+                    {
+                        errcode = sockErr;
+                    }
+
+                    if (log != null)
+                    {
+                        log.LogInfo("GetToolDI(id : "+block + ",level:  "+errcode+")");
+                    }
+                    return errcode;
+                }
+                catch (Throwable e)
+                {
+                    return -1;
+                }
+            }
 
             /**
              * @brief 等待控制箱数字量输入
@@ -1813,161 +1970,167 @@ public class Robot
         }
     }
 
-//            /**
-//             * @brief  获取控制箱模拟量输入
-//             * @param  id  io编号，范围[0~1]
-//             * @param  block  0-阻塞，1-非阻塞
-//             * @param  persent  输入电流或电压值百分比，范围[0~100]对应电流值[0~20mS]或电压[0~10V]
-//             * @return  错误码
-//             */
-//            public int GetAI(int id, int block, double persent)
-//            {
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    int errcode = 0;
-//
-//                    if (sockErr == RobotError.ERR_SUCCESS)
-//                    {
-//                        if (id >= 0 && id < 2)
-//                        {
-//                            persent = (double)(robot_state_pkg.cl_analog_input[id] / 40.95);
-//                        }
-//                        else
-//                        {
-//                            persent = 0;
-//                            errcode = -1;
-//                        }
-//                    }
-//                    else
-//                    {
-//                        errcode = sockErr;
-//                    }
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("GetAI({id + ",{block + ",{persent + ") : {errcode);
-//                    }
-//                    return errcode;
-//                }
-//                catch (Throwable e)
-//                {
-//                    return -1;
-//                }
-//            }
+            /**
+             * @brief  获取控制箱模拟量输入
+             * @param  id  io编号，范围[0~1]
+             * @param  block  0-阻塞，1-非阻塞
+             * @param  persent  输入电流或电压值百分比，范围[0~100]对应电流值[0~20mS]或电压[0~10V]
+             * @return  错误码
+             */
+            public int GetAI(int id, int block, double[] persent)
+            {
+                try
+                {
+                    Object[] params = new Object[] {};
+                    int errcode = 0;
+                    ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
 
-//            /**
-//             * @brief  获取工具模拟量输入
-//             * @param  id  io编号，范围[0]
-//             * @param  block  0-阻塞，1-非阻塞
-//             * @param  persent  输入电流或电压值百分比，范围[0~100]对应电流值[0~20mS]或电压[0~10V]
-//             * @return  错误码
-//             */
-//            public int GetToolAI(int id, int block, double persent)
-//            {
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    int errcode = 0;
-//
-//                    if (sockErr == RobotError.ERR_SUCCESS)
-//                    {
-//                        persent = (double)(robot_state_pkg.tl_anglog_input / 40.95);
-//                    }
-//                    else
-//                    {
-//                        errcode = sockErr;
-//                    }
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("GetToolAI(" + id + "," + block + "," + persent + ") : " + errcode);
-//                    }
-//                    return errcode;
-//                }
-//                catch (Throwable e)
-//                {
-//                    return -1;
-//                }
-//
-//            }
+                    if (sockErr == RobotError.ERR_SUCCESS)
+                    {
+                        if (id >= 0 && id < 2)
+                        {
+                            persent[0] = (double)(robot_state_pkg.cl_analog_input[id] / 40.95);
+                        }
+                        else
+                        {
+                            persent[0] = 0;
+                            errcode = -1;
+                        }
+                    }
+                    else
+                    {
+                        errcode = sockErr;
+                    }
+                    if (log != null)
+                    {
+                        log.LogInfo("GetAI(id:"+block + ",persent:"+persent[0]+")");
+                    }
+                    return errcode;
+                }
+                catch (Throwable e)
+                {
+                    return -1;
+                }
+            }
 
-//            /**
-//             * @brief 获取机器人末端点记录按钮状态
-//             * @param state 按钮状态，0-按下，1-松开
-//             * @return 错误码
-//             */
-//            public int GetAxlePointRecordBtnState(int state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    state = (int)((robot_state_pkg.tl_dgt_input_l & 0x10) >> 4);
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetAxlePointRecordBtnState(" + state + ") : " + errcode);
-//                }
-//
-//                return errcode;
-//            }
+            /**
+             * @brief  获取工具模拟量输入
+             * @param  id  io编号，范围[0]
+             * @param  block  0-阻塞，1-非阻塞
+             * @param  persent  输入电流或电压值百分比，范围[0~100]对应电流值[0~20mS]或电压[0~10V]
+             * @return  错误码
+             */
+            public int GetToolAI(int id, int block, double[] persent)
+            {
+                try
+                {
+                    ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
 
-//            /**
-//             * @brief 获取机器人末端DO输出状态
-//             * @param do_state DO输出状态，do0~do1对应bit1~bit2,从bit0开始
-//             * @return 错误码
-//             */
-//            public int GetToolDO(int do_state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    do_state = robot_state_pkg.tl_dgt_output_l;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetToolDO(" + do_state + ") : " + errcode);
-//                }
-//
-//                return errcode;
-//            }
+                    Object[] params = new Object[] {};
+                    int errcode = 0;
 
-//            /**
-//             * @brief 获取机器人控制器DO输出状态
-//             * @param do_state_h DO输出状态，co0~co7对应bit0~bit7
-//             * @param do_state_l DO输出状态，do0~do7对应bit0~bit7
-//             * @return 错误码
-//             */
-//            public int GetDO(int do_state_h, int do_state_l)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    do_state_h = robot_state_pkg.cl_dgt_output_h;
-//                    do_state_l = robot_state_pkg.cl_dgt_output_l;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetDO(" + do_state_h + ",  " + do_state_l + ") : " + errcode);
-//                }
-//
-//                return errcode;
-//            }
+                    if (sockErr == RobotError.ERR_SUCCESS)
+                    {
+                        persent[0] = (double)(robot_state_pkg.tl_anglog_input / 40.95);
+                    }
+                    else
+                    {
+                        errcode = sockErr;
+                    }
+                    if (log != null)
+                    {
+                        log.LogInfo("GetToolAI(" + id + "," + block + "," + persent[0] + ") : " + errcode);
+                    }
+                    return errcode;
+                }
+                catch (Throwable e)
+                {
+                    return -1;
+                }
+
+            }
+
+            /**
+             * @brief 获取机器人末端点记录按钮状态
+             * @param state 按钮状态，0-按下，1-松开
+             * @return 错误码
+             */
+            public int GetAxlePointRecordBtnState(int[] state)
+            {
+                int errcode = 0;
+                ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    state[0] = (int)((robot_state_pkg.tl_dgt_input_l & 0x10) >> 4);
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetAxlePointRecordBtnState(" + state[0] + ") : " + errcode);
+                }
+
+                return errcode;
+            }
+
+            /**
+             * @brief 获取机器人末端DO输出状态
+             * @param do_state DO输出状态，do0~do1对应bit1~bit2,从bit0开始
+             * @return 错误码
+             */
+            public int GetToolDO(int[] do_state)
+            {
+                int errcode = 0;
+                ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    do_state[0] = robot_state_pkg.tl_dgt_output_l;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetToolDO(" + do_state[0] + ") : " + errcode);
+                }
+
+                return errcode;
+            }
+
+            /**
+             * @brief 获取机器人控制器DO输出状态
+             * @param do_state_h DO输出状态，co0~co7对应bit0~bit7
+             * @param do_state_l DO输出状态，do0~do7对应bit0~bit7
+             * @return 错误码
+             */
+            public int GetDO(int[] do_state_h, int[] do_state_l)
+            {
+                int errcode = 0;
+                ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    do_state_h[0] = robot_state_pkg.cl_dgt_output_h;
+                    do_state_l[0] = robot_state_pkg.cl_dgt_output_l;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetDO(" + do_state_h[0] + ",  " + do_state_l[0] + ") : " + errcode);
+                }
+
+                return errcode;
+            }
 
     /**
      * @brief 等待控制箱模拟量输入
@@ -3837,148 +4000,148 @@ public class Robot
     }
 
 
-//            /**
-//             * @brief  获取关节反馈加速度-deg/s^2
-//             * @param  flag 0-阻塞，1-非阻塞
-//             * @param  acc 六个关节加速度
-//             * @return  错误码
-//             */
-//            public int GetActualJointAccDegree(int flag, Object[] acc)
-//            {
-//                int errCode = 0;
-//                int i;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    for (i = 0; i < 6; i++)
-//                    {
-//                        acc[i] = robotStateRoutineThread.pkg.actual_qdd[i];
-//                    }
-//                }
-//                else
-//                {
-//                    errCode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualJointAccDegree(" + flag + "," + acc[0] + "," + acc[1] + ",  " + acc[2] + ",  " + acc[3] + ",  " + acc[4] + ",  " + acc[5] + ") : " + errcode);
-//                }
-//                return errCode;
-//
-//            }
+            /**
+             * @brief  获取关节反馈加速度-deg/s^2
+             * @param  flag 0-阻塞，1-非阻塞
+             * @param  acc 六个关节加速度
+             * @return  错误码
+             */
+            public int GetActualJointAccDegree(int flag, Object[] acc)
+            {
+                int errCode = 0;
+                int i;
 
-//            /**
-//             * @brief  获取TCP指令速度
-//             * @param  flag 0-阻塞，1-非阻塞
-//             * @param  tcp_speed 线性速度
-//             * @param  ori_speed 姿态速度
-//             * @return  错误码
-//             */
-//            public int GetTargetTCPCompositeSpeed(int flag, double tcp_speed, double ori_speed)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    tcp_speed = (double)robotStateRoutineThread.pkg.target_TCP_CmpSpeed[0];
-//                    ori_speed = (double)robotStateRoutineThread.pkg.target_TCP_CmpSpeed[1];
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetTargetTCPCompositeSpeed({flag + "," + tcp_speed + "," + ori_speed + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    for (i = 0; i < 6; i++)
+                    {
+                        acc[i] = robotStateRoutineThread.pkg.actual_qdd[i];
+                    }
+                }
+                else
+                {
+                    errCode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualJointAccDegree(" + flag + "," + acc[0] + "," + acc[1] + ",  " + acc[2] + ",  " + acc[3] + ",  " + acc[4] + ",  " + acc[5] + ") : " + errCode);
+                }
+                return errCode;
 
-//            /**
-//             * @brief  获取TCP反馈速度
-//             * @param  flag 0-阻塞，1-非阻塞
-//             * @param  tcp_speed 线性速度
-//             * @param  ori_speed 姿态速度
-//             * @return  错误码
-//             */
-//            public int GetActualTCPCompositeSpeed(int flag, double tcp_speed, double ori_speed)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    tcp_speed = (double)robotStateRoutineThread.pkg.actual_TCP_CmpSpeed[0];
-//                    ori_speed = (double)robotStateRoutineThread.pkg.actual_TCP_CmpSpeed[1];
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualTCPCompositeSpeed(" + flag + "," + tcp_speed + "," + ori_speed + ") : " + errcode);
-//                }
-//                return errcode;
-//
-//            }
+            }
 
-//            /**
-//             * @brief  获取TCP指令速度
-//             * @param  flag 0-阻塞，1-非阻塞
-//             * @param  speed [x,y,z,rx,ry,rz]速度
-//             * @return  错误码
-//             */
-//            public int GetTargetTCPSpeed(int flag, Object[] speed)
-//            {
-//                int errcode = 0;
-//                int i;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    for (i = 0; i < 6; i++)
-//                    {
-//                        speed[i] = (double)robotStateRoutineThread.pkg.target_TCP_Speed[i];
-//                    }
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetTargetTCPSpeed(" + flag + "," + speed[0] + "," + speed[1] + ",  " + speed[2] + ",  " + speed[3] + ",  " + speed[4] + ",  " + speed[5] + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief  获取TCP指令速度
+             * @param  flag 0-阻塞，1-非阻塞
+             * @param  tcp_speed 线性速度
+             * @param  ori_speed 姿态速度
+             * @return  错误码
+             */
+            public int GetTargetTCPCompositeSpeed(int flag, double tcp_speed, double ori_speed)
+            {
+                int errcode = 0;
 
-//            /**
-//             * @brief  获取TCP反馈速度
-//             * @param  flag 0-阻塞，1-非阻塞
-//             * @param  speed [x,y,z,rx,ry,rz]速度
-//             * @return  错误码
-//             */
-//            public int GetActualTCPSpeed(int flag, Object[] speed)
-//            {
-//                int errcode = 0;
-//                int i;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    for (i = 0; i < 6; i++)
-//                    {
-//                        speed[i] = (double)robotStateRoutineThread.pkg.actual_TCP_Speed[i];
-//                    }
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualTCPSpeed(" + flag + "," + speed[0] + "," + speed[1] + ",  " + speed[2] + ",  " + speed[3] + ",  " + speed[4] + ",  " + speed[5] + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    tcp_speed = (double)robotStateRoutineThread.pkg.target_TCP_CmpSpeed[0];
+                    ori_speed = (double)robotStateRoutineThread.pkg.target_TCP_CmpSpeed[1];
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetTargetTCPCompositeSpeed("+flag + "," + tcp_speed + "," + ori_speed + ") : " + errcode);
+                }
+                return errcode;
+            }
+
+            /**
+             * @brief  获取TCP反馈速度
+             * @param  flag 0-阻塞，1-非阻塞
+             * @param  tcp_speed 线性速度
+             * @param  ori_speed 姿态速度
+             * @return  错误码
+             */
+            public int GetActualTCPCompositeSpeed(int flag, double tcp_speed, double ori_speed)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    tcp_speed = (double)robotStateRoutineThread.pkg.actual_TCP_CmpSpeed[0];
+                    ori_speed = (double)robotStateRoutineThread.pkg.actual_TCP_CmpSpeed[1];
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualTCPCompositeSpeed(" + flag + "," + tcp_speed + "," + ori_speed + ") : " + errcode);
+                }
+                return errcode;
+
+            }
+
+            /**
+             * @brief  获取TCP指令速度
+             * @param  flag 0-阻塞，1-非阻塞
+             * @param  speed [x,y,z,rx,ry,rz]速度
+             * @return  错误码
+             */
+            public int GetTargetTCPSpeed(int flag, Object[] speed)
+            {
+                int errcode = 0;
+                int i;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    for (i = 0; i < 6; i++)
+                    {
+                        speed[i] = (double)robotStateRoutineThread.pkg.target_TCP_Speed[i];
+                    }
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetTargetTCPSpeed(" + flag + "," + speed[0] + "," + speed[1] + ",  " + speed[2] + ",  " + speed[3] + ",  " + speed[4] + ",  " + speed[5] + ") : " + errcode);
+                }
+                return errcode;
+            }
+
+            /**
+             * @brief  获取TCP反馈速度
+             * @param  flag 0-阻塞，1-非阻塞
+             * @param  speed [x,y,z,rx,ry,rz]速度
+             * @return  错误码
+             */
+            public int GetActualTCPSpeed(int flag, Object[] speed)
+            {
+                int errcode = 0;
+                int i;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    for (i = 0; i < 6; i++)
+                    {
+                        speed[i] = (double)robotStateRoutineThread.pkg.actual_TCP_Speed[i];
+                    }
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualTCPSpeed(" + flag + "," + speed[0] + "," + speed[1] + ",  " + speed[2] + ",  " + speed[3] + ",  " + speed[4] + ",  " + speed[5] + ") : " + errcode);
+                }
+                return errcode;
+            }
 
     /**
      * @brief  获取当前工具位姿
@@ -4009,85 +4172,85 @@ public class Robot
         return errcode;
     }
 
-//            /**
-//             * @brief  获取当前工具坐标系编号
-//             * @param  flag  0-阻塞，1-非阻塞
-//             * @param  id  工具坐标系编号
-//             * @return  错误码
-//             */
-//            public int GetActualTCPNum(int flag, int id)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    id = robotStateRoutineThread.pkg.tool;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualTCPNum({flag + ", {id + ") : {errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief  获取当前工具坐标系编号
+             * @param  flag  0-阻塞，1-非阻塞
+             * @param  id  工具坐标系编号
+             * @return  错误码
+             */
+            public int GetActualTCPNum(int flag, int id)
+            {
+                int errcode = 0;
 
-//            /**
-//             * @brief  获取当前工件坐标系编号
-//             * @param  flag  0-阻塞，1-非阻塞
-//             * @param  id  工件坐标系编号
-//             * @return  错误码
-//             */
-//            public int GetActualWObjNum(int flag, int id)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    id = robotStateRoutineThread.pkg.user;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualWObjNum(" + flag + ",  " + id + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    id = robotStateRoutineThread.pkg.tool;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualTCPNum("+flag + "," +id+ ")"+errcode);
+                }
+                return errcode;
+            }
 
-//            /**
-//             * @brief  获取当前末端法兰位姿
-//             * @param  flag  0-阻塞，1-非阻塞
-//             * @param  desc_pos  法兰位姿
-//             * @return  错误码
-//             */
-//            public int GetActualToolFlangePose(int flag, DescPose desc_pos)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    desc_pos.tran.x = robotStateRoutineThread.pkg.flange_cur_pos[0];
-//                    desc_pos.tran.y = robotStateRoutineThread.pkg.flange_cur_pos[1];
-//                    desc_pos.tran.z = robotStateRoutineThread.pkg.flange_cur_pos[2];
-//                    desc_pos.rpy.rx = robotStateRoutineThread.pkg.flange_cur_pos[3];
-//                    desc_pos.rpy.ry = robotStateRoutineThread.pkg.flange_cur_pos[4];
-//                    desc_pos.rpy.rz = robotStateRoutineThread.pkg.flange_cur_pos[5];
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetActualToolFlangePose(" + flag + ",  " + desc_pos.tran.x + "," + desc_pos.tran.y + "," + desc_pos.tran.z + "," + desc_pos.rpy.rx + "," + desc_pos.rpy.ry + "," + desc_pos.rpy.rz + ",) : " + errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief  获取当前工件坐标系编号
+             * @param  flag  0-阻塞，1-非阻塞
+             * @param  id  工件坐标系编号
+             * @return  错误码
+             */
+            public int GetActualWObjNum(int flag, int id)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    id = robotStateRoutineThread.pkg.user;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualWObjNum(" + flag + ",  " + id + ") : " + errcode);
+                }
+                return errcode;
+            }
+
+            /**
+             * @brief  获取当前末端法兰位姿
+             * @param  flag  0-阻塞，1-非阻塞
+             * @param  desc_pos  法兰位姿
+             * @return  错误码
+             */
+            public int GetActualToolFlangePose(int flag, DescPose desc_pos)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    desc_pos.tran.x = robotStateRoutineThread.pkg.flange_cur_pos[0];
+                    desc_pos.tran.y = robotStateRoutineThread.pkg.flange_cur_pos[1];
+                    desc_pos.tran.z = robotStateRoutineThread.pkg.flange_cur_pos[2];
+                    desc_pos.rpy.rx = robotStateRoutineThread.pkg.flange_cur_pos[3];
+                    desc_pos.rpy.ry = robotStateRoutineThread.pkg.flange_cur_pos[4];
+                    desc_pos.rpy.rz = robotStateRoutineThread.pkg.flange_cur_pos[5];
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetActualToolFlangePose(" + flag + ",  " + desc_pos.tran.x + "," + desc_pos.tran.y + "," + desc_pos.tran.z + "," + desc_pos.rpy.rx + "," + desc_pos.rpy.ry + "," + desc_pos.rpy.rz + ",) : " + errcode);
+                }
+                return errcode;
+            }
 
     /**
      * @brief  逆运动学求解
@@ -4276,30 +4439,36 @@ public class Robot
     /**
      * @brief 获取当前关节转矩
      * @param  flag 0-阻塞，1-非阻塞
-     * @param  torques 关节转矩
-     * @return  错误码
+     * @return  List<Number> 0-错误码,关节转矩
      */
-    public int GetJointTorques(int flag, Object[] torques)
+    public List<Number> GetJointTorques(int flag)
     {
-        int errcode = 0;
+        List<Number> torques=new ArrayList<>();
+        torques.add(0);
+        torques.add(0.0);
+        torques.add(0);
+        torques.add(0);
+        torques.add(0);
+        torques.add(0);
+        torques.add(0);
         int i;
 
         if (sockErr == RobotError.ERR_SUCCESS)
         {
             for (i = 0; i < 6; i++)
             {
-                torques[i] = (double)robotStateRoutineThread.pkg.jt_cur_tor[i];
+                torques.set(i+1,(double)robotStateRoutineThread.pkg.jt_cur_tor[i]);
             }
         }
         else
         {
-            errcode = sockErr;
+            torques.set(0,sockErr);
         }
         if (log != null)
         {
-            log.LogInfo("GetJointTorques(" + flag + "," + Arrays.toString(torques) + ") : " + errcode);
+            log.LogInfo("GetJointTorques(" + flag + "," + torques + ")");
         }
-        return errcode;
+        return torques;
     }
 
     /**
@@ -4646,59 +4815,59 @@ public class Robot
                 }
             }
 
-//            /**
-//             * @brief  查询机器人运动是否完成
-//             * @param   state  0-未完成，1-完成
-//             * @return  错误码
-//             */
-//            public int GetRobotMotionDone(int state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    state = (int)robotStateRoutineThread.pkg.motion_done;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetRobotMotionDone({state}) : " + errcode}");
-//                }
-//
-//                return errcode;
-//            }
+            /**
+             * @brief  查询机器人运动是否完成
+             * @param   state  0-未完成，1-完成
+             * @return  错误码
+             */
+            public int GetRobotMotionDone(int state)
+            {
+                int errcode = 0;
 
-//            /**
-//             * @brief  查询机器人错误码
-//             * @param   maincode  主错误码
-//             * @param   subcode   子错误码
-//             * @return  错误码
-//             */
-//            public int GetRobotErrorCode(int maincode, int subcode)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    maincode = robotStateRoutineThread.pkg.main_code;
-//                    subcode = robotStateRoutineThread.pkg.sub_code;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetRobotErrorCode(" + maincode}, " + subcode}) : " + errcode}");
-//                }
-//
-//                return errcode;
-//            }
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    state = (int)robotStateRoutineThread.pkg.motion_done;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetRobotMotionDone("+state+":" + errcode);
+                }
+
+                return errcode;
+            }
+
+            /**
+             * @brief  查询机器人错误码
+             * @param   maincode  主错误码
+             * @param   subcode   子错误码
+             * @return  错误码
+             */
+            public int GetRobotErrorCode(int[] maincode, int[] subcode)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    maincode[0] = robotStateRoutineThread.pkg.main_code;
+                    subcode[0] = robotStateRoutineThread.pkg.sub_code;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetRobotErrorCode(" + maincode[0]+ " ," + subcode[0]+")");
+                }
+
+                return errcode;
+            }
 
 //            private int GetRobotErrorCode() throws XmlRpcException
 //            {
@@ -4779,26 +4948,26 @@ public class Robot
              * @param   len  缓存长度
              * @return  错误码
              */
-//            public int GetMotionQueueLength(int len)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    len = robotStateRoutineThread.pkg.mc_queue_len;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetMotionQueueLength(" + len}) : " + errcode}");
-//                }
-//
-//                return errcode;
-//            }
+            public int GetMotionQueueLength(int len)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    len = robotStateRoutineThread.pkg.mc_queue_len;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetMotionQueueLength(" + len+"): " + errcode);
+                }
+
+                return errcode;
+            }
 
 
             /**
@@ -5235,49 +5404,48 @@ public class Robot
 
             }
 
-//            /**
-//             * @brief  获取轨迹点编号
-//             * @return  错误码
-//             */
-//            public int GetTrajectoryPointNum(int pnum)
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//
-//                try
-//                {
-//                    Object[] params = new Object[] {};
-//                    int errcode = 0;
-//
-//                    if (sockErr == RobotError.ERR_SUCCESS)
-//                    {
-//                        pnum = robotStateRoutineThread.pkg.trajectory_pnum;
-//                    }
-//                    else
-//                    {
-//                        errcode = sockErr;
-//                    }
-//
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("GetTrajectoryPointNum({pnum + ") : {errcode);
-//                    }
-//
-//                    return errcode;
-//                }
-//                catch (Throwable e)
-//                {
-//
-//                    if (log != null)
-//                    {
-//                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
-//                    }
-//                    return RobotError.ERR_RPC_ERROR;
-//                }
-//
-//            }
+            /**
+             * @brief  获取轨迹点编号
+             * @return  错误码
+             */
+            public int GetTrajectoryPointNum(int pnum)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+
+                try
+                {
+                    Object[] params = new Object[] {};
+                    int errcode = 0;
+
+                    if (sockErr == RobotError.ERR_SUCCESS)
+                    {
+                        pnum = robotStateRoutineThread.pkg.trajectory_pnum;
+                    }
+                    else
+                    {
+                        errcode = sockErr;
+                    }
+
+                    if (log != null)
+                    {
+                        log.LogInfo("GetTrajectoryPointNum("+pnum + ") :"+errcode);
+                    }
+
+                    return errcode;
+                }
+                catch (Throwable e)
+                {
+
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+            }
 
             /**
              * @brief  设置轨迹运行中的速度
@@ -5829,24 +5997,24 @@ public class Robot
              * @param   state 1-程序停止或无程序运行，2-程序运行中，3-程序暂停
              * @return  错误码
              */
-//            public int GetProgramState(int state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    state = robotStateRoutineThread.pkg.robot_state;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetProgramState({state + ") : {errcode);
-//                }
-//                return errcode;
-//            }
+            public int GetProgramState(int[] state)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    state[0] = robotStateRoutineThread.pkg.robot_state;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetProgramState("+state[0] +") : "+errcode);
+                }
+                return errcode;
+            }
 
             /**
              * @brief  配置夹爪
@@ -6009,9 +6177,9 @@ public class Robot
             public List<Integer> GetGripperMotionDone()
             {
                 List<Integer> rtnArray = new ArrayList<Integer>() {};
-                rtnArray.add(-1);
-                rtnArray.add(-1);
-                rtnArray.add(-1);
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
 
                 if (IsSockComError())
                 {
@@ -6046,168 +6214,172 @@ public class Robot
                 }
             }
 
-//            /**
-//             * @brief  获取夹爪激活状态
-//             * @param  fault  0-无错误，1-有错误
-//             * @param  status  bit0~bit15对应夹爪编号0~15，bit=0为未激活，bit=1为激活
-//             * @return  错误码
-//             */
-//            public int GetGripperActivateStatus(int fault, int status)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    status = robotStateRoutineThread.pkg.gripper_active;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperActivateStatus(" + fault}," + status}) : " + errcode}"" , params);
-//                }
-//
-//
-//                return errcode;
-//            }
-//
-//            /**
-//             * @brief  获取夹爪位置
-//             * @param  fault  0-无错误，1-有错误
-//             * @param  position  位置百分比，范围0~100%
-//             * @return  错误码
-//             */
-//            public int GetGripperCurPosition(int fault, int position)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    position = robotStateRoutineThread.pkg.gripper_position;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperCurPosition(" + fault + "," + position + ") : " + errcode);
-//                }
-//
-//                return errcode;
-//            }
-//
-//            /**
-//             * @brief  获取夹爪速度
-//             * @param  fault  0-无错误，1-有错误
-//             * @param  speed  速度百分比，范围0~100%
-//             * @return  错误码
-//             */
-//            public int GetGripperCurSpeed(int fault, int speed)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    speed = robotStateRoutineThread.pkg.gripper_speed;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperCurSpeed(" + fault + "," + speed + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief  获取夹爪激活状态
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]: status  bit0~bit15对应夹爪编号0~15，bit=0为未激活，bit=1为激活
+             */
+            public List<Number> GetGripperActivateStatus()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1,robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2,robotStateRoutineThread.pkg.gripper_active);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperActivateStatus(" + rtnArray.get(1)+"," + rtnArray.get(2)+"):" +rtnArray.get(0));
+                }
+
+                return rtnArray;
+            }
+
+            /**
+             * @brief  获取夹爪位置
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]: position  位置百分比，范围0~100%
+             */
+            public List<Number> GetGripperCurPosition()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1,robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2,robotStateRoutineThread.pkg.gripper_position);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+                }
+
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperCurPosition(" + rtnArray.get(1) + "," + rtnArray.get(2) + ") : " + rtnArray.get(0));
+                }
+
+                return rtnArray;
+            }
+
+            /**
+             * @brief  获取夹爪速度
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]: speed  速度百分比，范围0~100%
+             */
+            public List<Number> GetGripperCurSpeed()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1, robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2, robotStateRoutineThread.pkg.gripper_speed);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperCurSpeed(" + rtnArray.get(1) + "," + rtnArray.get(2) + ") : " + rtnArray.get(0));
+                }
+                return rtnArray;
+            }
 
             /**
              * @brief  获取夹爪电流
-             * @param  fault  0-无错误，1-有错误
-             * @param  current  电流百分比，范围0~100%
-             * @return  错误码
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]: current  电流百分比，范围0~100%
              */
-//            public int GetGripperCurCurrent(int fault, int current)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    current = robotStateRoutineThread.pkg.gripper_current;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperCurCurrent(" + fault + "," + current + ") : " + errcode" , params);
-//                }
-//
-//                return errcode;
-//            }
+            public List<Number> GetGripperCurCurrent()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1,robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2,robotStateRoutineThread.pkg.gripper_current);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperCurCurrent(" + rtnArray.get(1) + "," + rtnArray.get(2) + ") : " + rtnArray.get(0));
+                }
+
+                return rtnArray;
+            }
 
             /**
              * @brief  获取夹爪电压
-             * @param  fault  0-无错误，1-有错误
-             * @param  voltage  电压,单位0.1V
-             * @return  错误码
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]:voltage  电压,单位0.1V
              */
-//            public int GetGripperVoltage(int fault, int voltage)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    voltage = robotStateRoutineThread.pkg.gripper_voltage;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperVoltage(" + fault + "," + voltage + ") : " + errcode);
-//                }
-//
-//
-//                return errcode;
-//            }
+            public List<Number> GetGripperVoltage()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1,robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2,robotStateRoutineThread.pkg.gripper_voltage);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperVoltage(" + rtnArray.get(1) + "," + rtnArray.get(2) + ") : " + rtnArray.get(0));
+                }
+
+
+                return rtnArray;
+            }
 
             /**
              * @brief  获取夹爪温度
-             * @param  fault  0-无错误，1-有错误
-             * @param  temp  温度，单位℃
-             * @return  错误码
+             * @return  List[0]:错误码; List[1] : fault  0-无错误，1-有错误; List[2]:temp  温度，单位℃
              */
-//            public int GetGripperTemp(int fault, int temp)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    fault = robotStateRoutineThread.pkg.gripper_fault;
-//                    temp = robotStateRoutineThread.pkg.gripper_tmp;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetGripperTemp(" + fault + "," + temp + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+            public List<Number> GetGripperTemp()
+            {
+                List<Number> rtnArray =new ArrayList<>();
+                rtnArray.add(0);
+                rtnArray.add(1);
+                rtnArray.add(1);
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    rtnArray.set(1,robotStateRoutineThread.pkg.gripper_fault);
+                    rtnArray.set(2, robotStateRoutineThread.pkg.gripper_tmp);
+                }
+                else
+                {
+                    rtnArray.set(0,sockErr);
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetGripperTemp(" + rtnArray.get(1) + "," + rtnArray.get(2) + ") : " + rtnArray.get(0));
+                }
+                return rtnArray;
+            }
 
             /**
              * @brief  计算预抓取点-视觉
@@ -6940,17 +7112,15 @@ public class Robot
              * @brief 获取负载辨识结果
              * @param gain
              * @return List[0]:错误码; List[1] : double weight 负载重量; List[2]: x 负载质心X mm
-             * List[3] : double weight 负载重量; List[2]: x 负载质心X mm
-             * List[4] : double weight 重量; List[2]: x 负载质心X mm
              */
             public List<Number> LoadIdentifyGetResult(Object[] gain)
             {
                 List<Number> rtnArray = new ArrayList<Number>() {};
                 rtnArray.add(-1);
-                rtnArray.add(-1);
-                rtnArray.add(-1);
-                rtnArray.add(-1);
-                rtnArray.add(-1);
+                rtnArray.add(0.0);
+                rtnArray.add(0.0);
+                rtnArray.add(0.0);
+                rtnArray.add(0.0);
 
                 if (IsSockComError())
                 {
@@ -6986,6 +7156,7 @@ public class Robot
                     return rtnArray;
                 }
             }
+
 
             /**
              * @brief 传动带启动、停止
@@ -7461,7 +7632,7 @@ public class Robot
              * @param md5 文件MD5值
              * @return 错误码
              */
-            public int ComputeFileMD5(String file_path, String md5)
+            public int ComputeFileMD5(String file_path, String[] md5)
             {
                 if (IsSockComError())
                 {
@@ -7474,11 +7645,11 @@ public class Robot
                     Object[] result = (Object[])client.execute("ComputeFileMD5" , params);
                     if ((int)result[0] == 0)
                     {
-                        md5 = (String)result[1];
+                        md5[0] = (String)result[1];
                     }
                     if (log != null)
                     {
-                        log.LogInfo("ComputeFileMD5(" + file_path + ",  " + md5 + ") : " + (int)result[0]);
+                        log.LogInfo("ComputeFileMD5(" + file_path + ",  " + md5[0] + ") : " + (int)result[0]);
                     }
                     return (int)result[0];
                 }
@@ -7493,29 +7664,29 @@ public class Robot
 
             }
 
-//            /**
-//             * @brief 获取机器人急停状态
-//             * @param state 急停状态，0-非急停，1-急停
-//             * @return 错误码
-//             */
-//            public int GetRobotEmergencyStopState(int state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    state = robotStateRoutineThread.pkg.EmergencyStop;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetRobotEmergencyStopState(" + state + ") : " + errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief 获取机器人急停状态
+             * @param state 急停状态，0-非急停，1-急停
+             * @return 错误码
+             */
+            public int GetRobotEmergencyStopState(int state)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    state = robotStateRoutineThread.pkg.EmergencyStop;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetRobotEmergencyStopState(" + state + ") : " + errcode);
+                }
+                return errcode;
+            }
 
             /**
              * @brief 获取SDK与机器人的通讯状态
@@ -7541,30 +7712,30 @@ public class Robot
             }
 
 
-//            /**
-//             * @brief 获取安全停止信号
-//             * @param  si0_state 安全停止信号SI0，0-无效，1-有效
-//             * @param  si1_state 安全停止信号SI1，0-无效，1-有效
-//             */
-//            public int GetSafetyStopState(int si0_state, int si1_state)
-//            {
-//                int errcode = 0;
-//
-//                if (sockErr == RobotError.ERR_SUCCESS)
-//                {
-//                    si0_state = robotStateRoutineThread.pkg.safety_stop0_state;
-//                    si1_state = robotStateRoutineThread.pkg.safety_stop1_state;
-//                }
-//                else
-//                {
-//                    errcode = sockErr;
-//                }
-//                if (log != null)
-//                {
-//                    log.LogInfo("GetSafetyStopState(" + si0_state + ",  " + si1_state + ") : {errcode);
-//                }
-//                return errcode;
-//            }
+            /**
+             * @brief 获取安全停止信号
+             * @param  si0_state 安全停止信号SI0，0-无效，1-有效
+             * @param  si1_state 安全停止信号SI1，0-无效，1-有效
+             */
+            public int GetSafetyStopState(int[] si0_state, int[] si1_state)
+            {
+                int errcode = 0;
+
+                if (sockErr == RobotError.ERR_SUCCESS)
+                {
+                    si0_state[0] = robotStateRoutineThread.pkg.safety_stop0_state;
+                    si1_state[0] = robotStateRoutineThread.pkg.safety_stop1_state;
+                }
+                else
+                {
+                    errcode = sockErr;
+                }
+                if (log != null)
+                {
+                    log.LogInfo("GetSafetyStopState(" + si0_state[0] + ",  " + si1_state[0] + ") :"+errcode);
+                }
+                return errcode;
+            }
 
             /**
              * @brief 获取机器人DH参数补偿值
@@ -8019,7 +8190,7 @@ public class Robot
              * @param controllerVersion 控制器版本
              * @return 错误码
              */
-            public int GetSoftwareVersion(String robotModel, String webVersion, String controllerVersion)
+            public int GetSoftwareVersion(String[] robotModel, String[] webVersion, String[] controllerVersion)
             {
                 if (IsSockComError())
                 {
@@ -8032,14 +8203,14 @@ public class Robot
                     Object[] result = (Object[])client.execute("GetSoftwareVersion" , params);
                     if ((int)result[0] == 0)
                     {
-                        robotModel = (String)result[1];
-                        webVersion = (String)result[2];
-                        controllerVersion = (String)result[3];
+                        robotModel[0] = (String)result[1];
+                        webVersion[0] = (String)result[2];
+                        controllerVersion[0] = (String)result[3];
                     }
 
                     if (log != null)
                     {
-                        log.LogInfo("GetSoftwareVersion(" + robotModel +  "," + webVersion + "," + controllerVersion + ") : " + (int)result[0] );
+                        log.LogInfo("GetSoftwareVersion(" + robotModel[0] +  "," + webVersion[0] + "," + controllerVersion[0] + ") : " + (int)result[0] );
                     }
                     return (int)result[0];
                 }
@@ -8065,8 +8236,8 @@ public class Robot
              * @param endBoardVersion 末端板硬件版本
              * @return 错误码
              */
-            public int GetHardwareVersion(String ctrlBoxBoardVersion, String driver1Version, String driver2Version, String driver3Version,
-                                          String driver4Version, String driver5Version, String driver6Version, String endBoardVersion)
+            public int GetHardwareVersion(String[] ctrlBoxBoardVersion, String[] driver1Version, String[] driver2Version, String[] driver3Version,
+                                          String[] driver4Version, String[] driver5Version, String[] driver6Version, String[] endBoardVersion)
             {
                 if (IsSockComError())
                 {
@@ -8079,18 +8250,18 @@ public class Robot
                     Object[] result = (Object[])client.execute("GetSlaveHardVersion" , params);
                     if ((int)result[0] == 0)
                     {
-                        ctrlBoxBoardVersion = (String)result[1];
-                        driver1Version = (String)result[2];
-                        driver2Version = (String)result[3];
-                        driver3Version = (String)result[4];
-                        driver4Version = (String)result[5];
-                        driver5Version = (String)result[6];
-                        driver6Version = (String)result[7];
-                        endBoardVersion = (String)result[8];
+                        ctrlBoxBoardVersion[0] = (String)result[1];
+                        driver1Version[0] = (String)result[2];
+                        driver2Version[0] = (String)result[3];
+                        driver3Version[0] = (String)result[4];
+                        driver4Version[0] = (String)result[5];
+                        driver5Version[0] = (String)result[6];
+                        driver6Version[0] = (String)result[7];
+                        endBoardVersion[0] = (String)result[8];
                     }
                     if (log != null)
                     {
-                        log.LogInfo("GetSlaveHardVersion(" + ctrlBoxBoardVersion +  "," + driver1Version +  "," + driver2Version + "," + driver3Version + "," + driver4Version + "," + driver5Version + "," + driver6Version + "," + endBoardVersion + ") : " + (int)result[0] );
+                        log.LogInfo("GetSlaveHardVersion(" + ctrlBoxBoardVersion[0] +  "," + driver1Version[0] +  "," + driver2Version[0] + "," + driver3Version[0] + "," + driver4Version[0] + "," + driver5Version[0] + "," + driver6Version[0] + "," + endBoardVersion[0] + ") : " + (int)result[0] );
                     }
                     return (int)result[0];
                 }
@@ -8116,8 +8287,8 @@ public class Robot
              * @param endBoardVersion 末端板固件版本
              * @return 错误码
              */
-            public int GetFirmwareVersion(String ctrlBoxBoardVersion, String driver1Version, String driver2Version, String driver3Version,
-                                          String driver4Version, String driver5Version, String driver6Version, String endBoardVersion)
+            public int GetFirmwareVersion(String[] ctrlBoxBoardVersion, String[] driver1Version, String[] driver2Version, String[] driver3Version,
+                                          String[] driver4Version, String[] driver5Version, String[] driver6Version, String[] endBoardVersion)
             {
                 if (IsSockComError())
                 {
@@ -8130,18 +8301,18 @@ public class Robot
                     Object[] result = (Object[])client.execute("GetSlaveFirmVersion" , params);
                     if ((int)result[0] == 0)
                     {
-                        ctrlBoxBoardVersion = (String)result[1];
-                        driver1Version = (String)result[2];
-                        driver2Version = (String)result[3];
-                        driver3Version = (String)result[4];
-                        driver4Version = (String)result[5];
-                        driver5Version = (String)result[6];
-                        driver6Version = (String)result[7];
-                        endBoardVersion = (String)result[8];
+                        ctrlBoxBoardVersion[0] = (String)result[1];
+                        driver1Version[0] = (String)result[2];
+                        driver2Version[0] = (String)result[3];
+                        driver3Version[0] = (String)result[4];
+                        driver4Version[0] = (String)result[5];
+                        driver5Version[0] = (String)result[6];
+                        driver6Version[0] = (String)result[7];
+                        endBoardVersion[0] = (String)result[8];
                     }
                     if (log != null)
                     {
-                        log.LogInfo("GetSlaveFirmVersion(" + ctrlBoxBoardVersion + "," + driver1Version + "," + driver2Version + "," + driver3Version + "," + driver4Version + "," + driver5Version + "," + driver6Version + "," + endBoardVersion + ") : " + (int)result[0] );
+                        log.LogInfo("GetSlaveFirmVersion(" + ctrlBoxBoardVersion[0] + "," + driver1Version[0] + "," + driver2Version[0] + "," + driver3Version[0] + "," + driver4Version[0] + "," + driver5Version[0] + "," + driver6Version[0] + "," + endBoardVersion[0] + ") : " + (int)result[0] );
                     }
                     return (int)result[0];
                 }
@@ -8452,9 +8623,10 @@ public class Robot
              * @param weaveCircleRadio 圆形摆动-回调比率(0-100%)
              * @param weaveStationary 摆动位置等待，0-等待时间内位置继续移动；1-等待时间内位置静止
              * @param weaveYawAngle 摆动方向方位角(绕摆动Z轴旋转)，单位°
+             * @param weaveRotAngle 摆动方向方位角(绕摆动X轴旋转)，单位°
              * @return 错误码
              */
-            public int WeaveSetPara(int weaveNum, int weaveType, double weaveFrequency, int weaveIncStayTime, double weaveRange, double weaveLeftRange, double weaveRightRange, int additionalStayTime, int weaveLeftStayTime, int weaveRightStayTime, int weaveCircleRadio, int weaveStationary, double weaveYawAngle)
+            public int WeaveSetPara(int weaveNum, int weaveType, double weaveFrequency, int weaveIncStayTime, double weaveRange, double weaveLeftRange, double weaveRightRange, int additionalStayTime, int weaveLeftStayTime, int weaveRightStayTime, int weaveCircleRadio, int weaveStationary, double weaveYawAngle,double weaveRotAngle)
             {
                 if (IsSockComError())
                 {
@@ -8463,11 +8635,11 @@ public class Robot
 
                 try
                 {
-                    Object[] params = new Object[] {weaveNum, weaveType, weaveFrequency, weaveIncStayTime, weaveRange, weaveLeftRange, weaveRightRange, additionalStayTime, weaveLeftStayTime, weaveRightStayTime, weaveCircleRadio, weaveStationary, weaveYawAngle};
+                    Object[] params = new Object[] {weaveNum, weaveType, weaveFrequency, weaveIncStayTime, weaveRange, weaveLeftRange, weaveRightRange, additionalStayTime, weaveLeftStayTime, weaveRightStayTime, weaveCircleRadio, weaveStationary, weaveYawAngle,weaveRotAngle};
                     int rtn = (int)client.execute("WeaveSetPara" , params);
                     if (log != null)
                     {
-                        log.LogInfo("WeaveSetPara(" + weaveNum + "," + weaveType + "," + weaveFrequency + "," + weaveIncStayTime + "," + weaveRange + "," + weaveLeftRange + ", " + weaveRightRange + ", " + additionalStayTime + "," + weaveLeftStayTime + "," + weaveRightStayTime + "," + weaveCircleRadio + "," + weaveStationary + "," + weaveYawAngle + ") : " + rtn );
+                        log.LogInfo("WeaveSetPara(" + weaveNum + "," + weaveType + "," + weaveFrequency + "," + weaveIncStayTime + "," + weaveRange + "," + weaveLeftRange + ", " + weaveRightRange + ", " + additionalStayTime + "," + weaveLeftStayTime + "," + weaveRightStayTime + "," + weaveCircleRadio + "," + weaveStationary + "," + weaveYawAngle + ","+weaveRotAngle+ ") : " + rtn );
                     }
                     return rtn;
                 }
@@ -8817,7 +8989,7 @@ public class Robot
                                         return rtn;
                                     }
                                 }
-                                rtn = MoveL(tmpJoint, tmpWeldDesc, coord.tool, coord.user, vel, acc, ovl, blendR, epos, search, 0, endOffPos, 0, 1000);
+                                rtn = MoveL(tmpJoint, tmpWeldDesc, coord.tool, coord.user, vel, acc, ovl, blendR,epos, search, 0, endOffPos, 0, 1000);
                                 if (rtn != 0)
                                 {
                                     ARCEnd(weldIOType, arcNum, weldTimeout);
@@ -8851,7 +9023,7 @@ public class Robot
                             noWeldNum += 1;
                             if (weldNum * weldLength + noWeldNum * noWeldLength > distance)
                             {
-                                rtn = MoveL(endJPos, endDesePos, tool, user, vel, acc, ovl, blendR, epos, search, 0, offset_pos, 0, 100);
+                                rtn = MoveL(endJPos, endDesePos, tool, user, vel, acc, ovl, blendR,epos, search, 0, offset_pos, 0, 100);
                                 if (rtn != 0)
                                 {
                                     return rtn;
@@ -8869,7 +9041,7 @@ public class Robot
                                 {
                                     return rtn;
                                 }
-                                rtn = MoveL(tmpJoint, tmpWeldDesc, coord.tool, coord.user, vel, acc, ovl, blendR, epos, search, 0, endOffPos, 0, 100);
+                                rtn = MoveL(tmpJoint, tmpWeldDesc, coord.tool, coord.user, vel, acc, ovl, blendR, epos, search, 0, offset_pos,0,100);
                                 if (rtn != 0)
                                 {
                                     return rtn;
@@ -9997,50 +10169,50 @@ public class Robot
                 }
             }
 
-//            /**
-//             * @brief 获取485扩展轴伺服状态
-//             * @param servoId 伺服驱动器ID，范围[1-16],对应从站ID
-//             * @param servoErrCode 伺服驱动器故障码
-//             * @param servoState 伺服驱动器状态 bit0:0-未使能；1-使能;  bit1:0-未运动；1-正在运动;  bit4 0-未定位完成；1-定位完成；  bit5：0-未回零；1-回零完成
-//             * @param servoPos 伺服当前位置 mm或°
-//             * @param servoSpeed 伺服当前速度 mm/s或°/s
-//             * @param servoTorque 伺服当前转矩Nm
-//             * @return 错误码
-//             */
-//            public int AuxServoGetStatus(int servoId, int servoErrCode, int servoState, double servoPos, double servoSpeed, double servoTorque)
-//            {
-//                if (IsSockComError())
-//                {
-//                    return sockErr;
-//                }
-//
-//                try
-//                {
-//                    Object[] params = new Object[] {servoId};
-//                    Object[] result = (Object[])client.execute("AuxServoGetStatus" , params);
-//                    if ((int)result[0] == 0)
-//                    {
-//                        servoErrCode = (int)result[1];
-//                        servoState = (int)result[2];
-//                        servoPos = (double)result[3];
-//                        servoSpeed = (double)result[4];
-//                        servoTorque = (double)result[5];
-//                    }
-//                    if (log != null)
-//                    {
-//                        log.LogInfo("AuxServoGetStatus(" + servoId + "," + servoErrCode + "," + servoState + "," + servoPos + "," + servoSpeed + "," + servoTorque + ") : " + (int)result[0] );
-//                    }
-//                    return (int)result[0];
-//                }
-//                catch (Throwable e)
-//                {
-//                    if (log != null)
-//                    {
-//                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
-//                    }
-//                    return RobotError.ERR_RPC_ERROR;
-//                }
-//            }
+            /**
+             * @brief 获取485扩展轴伺服状态
+             * @param servoId 伺服驱动器ID，范围[1-16],对应从站ID
+             * @param servoErrCode 伺服驱动器故障码
+             * @param servoState 伺服驱动器状态 bit0:0-未使能；1-使能;  bit1:0-未运动；1-正在运动;  bit4 0-未定位完成；1-定位完成；  bit5：0-未回零；1-回零完成
+             * @param servoPos 伺服当前位置 mm或°
+             * @param servoSpeed 伺服当前速度 mm/s或°/s
+             * @param servoTorque 伺服当前转矩Nm
+             * @return 错误码
+             */
+            public int AuxServoGetStatus(int servoId, int[] servoErrCode, int[] servoState, double[] servoPos, double[] servoSpeed, double[] servoTorque)
+            {
+                if (IsSockComError())
+                {
+                    return sockErr;
+                }
+
+                try
+                {
+                    Object[] params = new Object[] {servoId};
+                    Object[] result = (Object[])client.execute("AuxServoGetStatus" , params);
+                    if ((int)result[0] == 0)
+                    {
+                        servoErrCode[0] = (int)result[1];
+                        servoState[0] = (int)result[2];
+                        servoPos[0] = (double)result[3];
+                        servoSpeed[0] = (double)result[4];
+                        servoTorque[0] = (double)result[5];
+                    }
+                    if (log != null)
+                    {
+                        log.LogInfo("AuxServoGetStatus(" + servoId + "," + servoErrCode[0] + "," + servoState[0] + "," + servoPos[0] + "," + servoSpeed[0] + "," + servoTorque[0] + ") : " + (int)result[0] );
+                    }
+                    return (int)result[0];
+                }
+                catch (Throwable e)
+                {
+                    if (log != null)
+                    {
+                        log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+                    }
+                    return RobotError.ERR_RPC_ERROR;
+                }
+            }
 
             /**
              * @brief 设置状态反馈中485扩展轴数据轴号
@@ -10345,11 +10517,11 @@ public class Robot
                 try
                 {
                     Object[] params = new Object[] {param.ip, param.port, param.period, param.lossPkgTime, param.lossPkgNum,
-                            param.disconnectTime, param.reconnectEnable, param.reconnectPeriod, param.reconnectNum};
+                            param.disconnectTime, param.reconnectEnable, param.reconnectPeriod, param.reconnectNum,param.selfConnect};
                     int rtn = (int)client.execute("ExtDevSetUDPComParam" , params);
                     if (log != null)
                     {
-                        log.LogInfo("ExtDevSetUDPComParam(" + param.ip + ", " + param.port + ", " + param.period + ", " + param.lossPkgTime + ", " + param.lossPkgNum + ", " + param.disconnectTime + ", " + param.reconnectEnable + ", " + param.reconnectPeriod + ", " + param.reconnectNum + ") : " + rtn );
+                        log.LogInfo("ExtDevSetUDPComParam(" + param.ip + ", " + param.port + ", " + param.period + ", " + param.lossPkgTime + ", " + param.lossPkgNum + ", " + param.disconnectTime + ", " + param.reconnectEnable + ", " + param.reconnectPeriod + ", " + param.reconnectNum +","+param.selfConnect+ ") : " + rtn );
                     }
                     return rtn;
                 }
@@ -10630,7 +10802,7 @@ public class Robot
                 {
                     Object[] params = new Object[] {0, pos.axis1, pos.axis2, pos.axis3, pos.axis4, ovl};
                     //单独调用时，默认异步运动
-                    int rtn = (int)client.execute("ExtAxisMoveJ" , params);
+                    int rtn = (int)client.execute("ExtAxisMove" , params);
                     if (log != null)
                     {
                         log.LogInfo("ExtAxisMove(" + pos.axis1 + ", " + pos.axis2 + ", " + pos.axis3 + ", " + pos.axis4 + ") : " + rtn);
@@ -11975,7 +12147,7 @@ public class Robot
              * @param  weight 负载重量 kg
              * @return  错误码
              */
-            public int SetForceSensorPayLoad(double weight)
+            public int SetForceSensorPayload(double weight)
             {
                 if (IsSockComError())
                 {
@@ -12006,7 +12178,7 @@ public class Robot
              * @param  cog 负载质心 mm
              * @return  错误码
              */
-            public int SetForceSensorPayLoadCog(DescTran cog)
+            public int SetForceSensorPayloadCog(DescTran cog)
             {
                 if (IsSockComError())
                 {
@@ -12036,7 +12208,7 @@ public class Robot
              * @brief  获取力传感器下负载重量
              * @return  List[0]:错误码; List[1] : weight 负载重量 kg
              */
-            public List<Number> GetForceSensorPayLoad()
+            public List<Number> GetForceSensorPayload()
             {
                 List<Number> rtnArray = new ArrayList<Number>() {};
                 rtnArray.add(-1);
@@ -12079,7 +12251,7 @@ public class Robot
              * @param  cog 负载质心 mm
              * @return  错误码
              */
-            public int GetForceSensorPayLoadCog(DescTran cog)
+            public int GetForceSensorPayloadCog(DescTran cog)
             {
                 if (IsSockComError())
                 {
@@ -12868,10 +13040,13 @@ public class Robot
 
             /**
              * @brief  摆动渐变开始
-             * @param   weaveNum 摆动编号
+             * @param  weaveChangeFlag 1-变摆动参数；2-变摆动参数+焊接速度
+             * @param  weaveNum 摆动编号
+             * @param  velStart 焊接开始速度，(cm/min)
+             * @param  velEnd 焊接结束速度，(cm/min)
              * @return  错误码
              */
-            public int WeaveChangeStart(int weaveNum)
+            public int WeaveChangeStart(int weaveChangeFlag, int weaveNum, double velStart, double velEnd)
             {
                 if (IsSockComError())
                 {
@@ -12879,11 +13054,11 @@ public class Robot
                 }
                 try
                 {
-                    Object[] params = new Object[] {weaveNum};
+                    Object[] params = new Object[] {weaveChangeFlag,weaveNum,velStart,velEnd};
                     int rtn = (int)client.execute("WeaveChangeStart" , params);
                     if (log != null)
                     {
-                        log.LogInfo("WeaveChangeStart(" + weaveNum + ") : " + rtn);
+                        log.LogInfo("WeaveChangeStart() : " + rtn);
                     }
                     return rtn;
                 }
@@ -13159,6 +13334,38 @@ public class Robot
         try
         {
             Object[] params = new Object[] {method};
+            int rtn = (int)client.execute("SetCollisionDetectionMethod" , params);
+            if (log != null)
+            {
+                log.LogInfo("SetCollisionDetectionMethod(" + method + ") : " + rtn);
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(), "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 设置机器人碰撞检测方法
+     * @param method 碰撞检测方法：0-电流模式；1-双编码器；2-电流和双编码器同时开启
+     * @param thresholdMode 碰撞等级阈值方式；0-碰撞等级固定阈值方式；1-自定义碰撞检测阈值
+     * @return 错误码
+     */
+    public int SetCollisionDetectionMethod(int method,int thresholdMode)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+        try
+        {
+            Object[] params = new Object[] {method,thresholdMode};
             int rtn = (int)client.execute("SetCollisionDetectionMethod" , params);
             if (log != null)
             {
@@ -13734,12 +13941,16 @@ public class Robot
             {
                 return (int)RobotError.ERR_UPLOAD_FILE_NOT_FOUND;
             }
+            System.out.println("1");
 
             int rtn = FileUpLoad(1, filePath);
             if (rtn == 0)
             {
                 Object[] params = new Object[] {};
+                System.out.println("2");
                 rtn = (int)client.execute("SoftwareUpgrade" , params);
+                System.out.println("2"+rtn);
+
                 if (rtn != 0)
                 {
                     if (log != null)
@@ -14568,6 +14779,41 @@ public class Robot
             return RobotError.ERR_RPC_ERROR;
         }
     }
+
+    /**
+     * @brief 开始Ptp运动FIR滤波
+     * @param maxAcc 最大加速度极值(deg/s2)
+     * @param maxJek 统一关节急动度极值(deg/s3)
+     * @return 错误码
+     */
+    public int PtpFIRPlanningStart(double maxAcc,double maxJek)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        try
+        {
+            Object[] params = new Object[] {maxAcc,maxJek};
+            int rtn = (int)client.execute("PtpFIRPlanningStart" , params);
+            if (log != null)
+            {
+                log.LogInfo("PtpFIRPlanningStart(" + maxAcc +") : " + rtn);
+            }
+            return rtn;
+        }
+        catch (Throwable e)
+        {
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
 
     /**
      * @brief 关闭Ptp运动FIR滤波
@@ -15563,10 +15809,10 @@ public class Robot
 
         try {
             Object[] params = new Object[] {timeout};
-            int rtn = (int)client.execute("ConveryComDetect" , params);
+            int rtn = (int)client.execute("ConveyorComDetect" , params);
             if (log != null)
             {
-                log.LogInfo("ConveryComDetect(): " + rtn);
+                log.LogInfo("ConveyorComDetect(): " + rtn);
             }
             return rtn;
 
@@ -15601,7 +15847,7 @@ public class Robot
                 Thread.sleep(10);
             }
 
-            sendBuf = "/f/bIII"+cnt+"III1149III25IIIConveryComDetectTrigger()III/b/f";
+            sendBuf = "/f/bIII"+cnt+"III1149III25IIIConveyorComDetectTrigger()III/b/f";
             System.out.println(sendBuf);
             clientCmd.Send(sendBuf);
             byte[] recvBuf = new byte[1024];
@@ -15627,6 +15873,390 @@ public class Robot
         }
     }
 
+    /**
+     * @brief 电弧跟踪焊机电流反馈AI通道选择
+     * @param  channel 通道；0-扩展AI0；1-扩展AI1；2-扩展AI2；3-扩展AI3；4-控制箱AI0；5-控制箱AI1
+     * @return 错误码
+     */
+    public int ArcWeldTraceAIChannelCurrent(int channel)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {channel};
+            int rtn = (int)client.execute("ArcWeldTraceAIChannelCurrent" , params);
+            if (log != null)
+            {
+                log.LogInfo("ArcWeldTraceAIChannelCurrent(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 电弧跟踪焊机电压反馈AI通道选择
+     * @param  channel 通道；0-扩展AI0；1-扩展AI1；2-扩展AI2；3-扩展AI3；4-控制箱AI0；5-控制箱AI1
+     * @return 错误码
+     */
+    public int ArcWeldTraceAIChannelVoltage(int channel)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {channel};
+            int rtn = (int)client.execute("ArcWeldTraceAIChannelVoltage" , params);
+            if (log != null)
+            {
+                log.LogInfo("ArcWeldTraceAIChannelVoltage(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 电弧跟踪焊机电流反馈转换参数
+     * @param AILow AI通道下限，默认值0V，范围[0-10V]
+     * @param AIHigh AI通道上限，默认值10V，范围[0-10V]
+     * @param currentLow AI通道下限对应焊机电流值，默认值0V，范围[0-200V]
+     * @param currentHigh AI通道上限对应焊机电流值，默认值100V，范围[0-200V]
+     * @return 错误码
+     */
+    public int ArcWeldTraceCurrentPara(double AILow, double AIHigh, double currentLow, double currentHigh)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {AILow,AIHigh,currentLow,currentHigh};
+            int rtn = (int)client.execute("ArcWeldTraceCurrentPara" , params);
+            if (log != null)
+            {
+                log.LogInfo("ArcWeldTraceCurrentPara(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 电弧跟踪焊机电压反馈转换参数
+     * @param AILow AI通道下限，默认值0V，范围[0-10V]
+     * @param AIHigh AI通道上限，默认值10V，范围[0-10V]
+     * @param voltageLow AI通道下限对应焊机电压值，默认值0V，范围[0-200V]
+     * @param voltageHigh AI通道上限对应焊机电压值，默认值100V，范围[0-200V]
+     * @return 错误码
+     */
+    public int ArcWeldTraceVoltagePara(double AILow, double AIHigh, double voltageLow, double voltageHigh)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {AILow,AIHigh,voltageLow,voltageHigh};
+            int rtn = (int)client.execute("ArcWeldTraceVoltagePara" , params);
+            if (log != null)
+            {
+                log.LogInfo("ArcWeldTraceVoltagePara(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 设置焊接电压渐变开始
+     * @param IOType 控制类型；0-控制箱IO；1-数字通信协议(UDP);2-数字通信协议(ModbusTCP)
+     * @param voltageStart 起始焊接电压(V)
+     * @param voltageEnd 终止焊接电压(V)
+     * @param AOIndex 控制箱AO端口号(0-1)
+     * @param blend 是否平滑 0-不平滑；1-平滑
+     * @return 错误码
+     */
+    public int WeldingSetVoltageGradualChangeStart(int IOType, double voltageStart, double voltageEnd, int AOIndex, int blend)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {IOType,voltageStart,voltageEnd,AOIndex,blend};
+            int rtn = (int)client.execute("WeldingSetVoltageGradualChangeStart" , params);
+            if (log != null)
+            {
+                log.LogInfo("WeldingSetVoltageGradualChangeStart(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 设置焊接电压渐变结束
+     * @return 错误码
+     */
+    public int WeldingSetVoltageGradualChangeEnd()
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {};
+            int rtn = (int)client.execute("WeldingSetVoltageGradualChangeEnd" , params);
+            if (log != null)
+            {
+                log.LogInfo("WeldingSetVoltageGradualChangeEnd(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 设置焊接电流渐变开始
+     * @param IOType 控制类型；0-控制箱IO；1-数字通信协议(UDP);2-数字通信协议(ModbusTCP)
+     * @param currentStart 起始焊接电流(A)
+     * @param currentEnd 终止焊接电流(A)
+     * @param AOIndex 控制箱AO端口号(0-1)
+     * @param blend 是否平滑 0-不平滑；1-平滑
+     * @return 错误码
+     */
+    public int WeldingSetCurrentGradualChangeStart(int IOType, double currentStart, double currentEnd, int AOIndex, int blend)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {IOType,currentStart,currentEnd,AOIndex,blend};
+            int rtn = (int)client.execute("WeldingSetCurrentGradualChangeStart" , params);
+            if (log != null)
+            {
+                log.LogInfo("WeldingSetCurrentGradualChangeStart(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 设置焊接电流渐变结束
+     * @return 错误码
+     */
+    public int WeldingSetCurrentGradualChangeEnd()
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        if (GetSafetyCode() != 0)
+        {
+            return GetSafetyCode();
+        }
+
+        try {
+            Object[] params = new Object[] {};
+            int rtn = (int)client.execute("WeldingSetCurrentGradualChangeEnd" , params);
+            if (log != null)
+            {
+                log.LogInfo("WeldingSetCurrentGradualChangeEnd(): " + rtn);
+            }
+            return rtn;
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+
+    /**
+     * @brief 获取SmartTool按钮状态
+     * @param state SmartTool手柄按钮状态;(bit0:0-通信正常；1-通信掉线；bit1-撤销操作；bit2-清空程序；
+    bit3-A键；bit4-B键；bit5-C键；bit6-D键；bit7-E键；bit8-IO键；bit9-手自动；bit10开始)
+     * @return 错误码
+     */
+    public int GetSmarttoolBtnState(int[] state)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        ROBOT_STATE_PKG robot_state_pkg = GetRobotRealTimeState();
+        state[0]=(int)robot_state_pkg.smartToolState;
+        return 0;
+    }
+
+    /**
+     * @brief 获取扩展轴坐标系
+     * @param  coord 扩展轴坐标系
+     * @return 错误码
+     */
+    public int ExtAxisGetCoord(DescPose coord)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        try {
+            Object[] params = new Object[] {};
+            Object[] result = (Object[])client.execute("ExtAxisGetCoord" , params);
+            if ((int)result[0] == 0)
+            {
+                coord.tran.x = (double)result[1];
+                coord.tran.y = (double)result[2];
+                coord.tran.z = (double)result[3];
+                coord.rpy.rx = (double)result[4];
+                coord.rpy.ry = (double)result[5];
+                coord.rpy.rz = (double)result[6];
+            }
+            return (int)result[0];
+
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
+
+    /**
+     * @brief 下发SCP指令
+     * @param  mode 0-上传（上位机->控制器），1-下载（控制器->上位机）
+     * @param  sshname 上位机用户名
+     * @param  sship 上位机ip地址
+     * @param  usr_file_url 上位机文件路径
+     * @param  robot_file_url 机器人控制器文件路径
+     * @return 错误码
+     */
+    public int SetSSHScpCmd(int mode, String sshname, String sship, String usr_file_url, String robot_file_url)
+    {
+        if (IsSockComError())
+        {
+            return sockErr;
+        }
+
+        try {
+            Object[] params = new Object[] {mode,sshname,sship,usr_file_url,robot_file_url};
+            int rtn = (int)client.execute("SetSSHScpCmd" , params);
+            return rtn;
+        }catch (Throwable e){
+            if (log != null)
+            {
+                log.LogError(Thread.currentThread().getStackTrace()[1].getMethodName(), Thread.currentThread().getStackTrace()[1].getLineNumber(),
+                        "RPC exception " + e.getMessage());
+            }
+            return RobotError.ERR_RPC_ERROR;
+        }
+    }
 
     /**
      * 截取byte数组   不改变原数组

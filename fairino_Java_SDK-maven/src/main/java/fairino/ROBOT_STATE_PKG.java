@@ -50,7 +50,7 @@ public class ROBOT_STATE_PKG
     public int gripper_tmp = 0;          /* 夹爪温度 */
     public int gripper_voltage = 0;      /* 夹爪电压 */
     public ROBOT_AUX_STATE auxState = new ROBOT_AUX_STATE(); /* 485扩展轴状态 */
-    public EXT_AXIS_STATUS extAxisStatus0 = new EXT_AXIS_STATUS();
+    public EXT_AXIS_STATUS extAxisStatus0 = new EXT_AXIS_STATUS();//扩展轴位置
     public EXT_AXIS_STATUS extAxisStatus1 = new EXT_AXIS_STATUS();
     public EXT_AXIS_STATUS extAxisStatus2 = new EXT_AXIS_STATUS();
     public EXT_AXIS_STATUS extAxisStatus3 = new EXT_AXIS_STATUS();
@@ -72,6 +72,9 @@ public class ROBOT_STATE_PKG
     public int gripperRotTorque;	   //旋转夹爪当前旋转力矩百分比
 
     public  WELDING_BREAKOFF_STATE weldingBreakOffstate=new WELDING_BREAKOFF_STATE();//焊接中断状态
+
+    public double[]  jt_tgt_tor=new double[6];    //关节指令力矩
+    int smartToolState;         //SmartTool手柄按钮状态
 
     public short check_sum = 0;          /* 和校验 */
 

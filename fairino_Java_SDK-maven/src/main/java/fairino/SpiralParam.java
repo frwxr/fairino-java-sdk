@@ -16,4 +16,7 @@ public class SpiralParam
         rotaxis_add = rotaxisAdd;
         rot_direction = rotDirection;
     }
+    public SpiralParam(){
+
+    }
 }

@@ -423,7 +423,23 @@ public class RobotStateRoutineThread extends Thread
                 pkg.weldingBreakOffstate.breakOffState = (int)pkgBuf[898];
                 pkg.weldingBreakOffstate.weldArcState = (int)pkgBuf[899];
 
-                System.arraycopy(pkgBuf, 900, tmp, 0, 2);
+                System.arraycopy(pkgBuf, 900, tmp, 0, 8);
+                pkg.jt_tgt_tor[0] = bytes2Double(tmp);
+                System.arraycopy(pkgBuf, 908, tmp, 0, 8);
+                pkg.jt_tgt_tor[1] = bytes2Double(tmp);
+                System.arraycopy(pkgBuf, 916, tmp, 0, 8);
+                pkg.jt_tgt_tor[2] = bytes2Double(tmp);
+                System.arraycopy(pkgBuf, 924, tmp, 0, 8);
+                pkg.jt_tgt_tor[3] = bytes2Double(tmp);
+                System.arraycopy(pkgBuf, 932, tmp, 0, 8);
+                pkg.jt_tgt_tor[4] = bytes2Double(tmp);
+                System.arraycopy(pkgBuf, 940, tmp, 0, 8);
+                pkg.jt_tgt_tor[5] = bytes2Double(tmp);
+
+                System.arraycopy(pkgBuf, 948, tmp, 0, 2);
+                pkg.smartToolState = byteToShort(tmp)[0];
+
+                System.arraycopy(pkgBuf, 950, tmp, 0, 2);
                 pkg.check_sum = byteToShort(tmp)[0];
 
             }

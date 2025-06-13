@@ -6,7 +6,7 @@ public class UDPComParam
 
     }
 
-    public UDPComParam(String ip, int port, int period, int lossPkgTime, int lossPkgNum, int disconnectTime, int reconnectEnable, int reconnectPeriod, int reconnectNum)
+    public UDPComParam(String ip, int port, int period, int lossPkgTime, int lossPkgNum, int disconnectTime, int reconnectEnable, int reconnectPeriod, int reconnectNum,int selfConnect)
     {
         this.ip = ip;
         this.port = port;
@@ -17,6 +17,8 @@ public class UDPComParam
         this.reconnectEnable = reconnectEnable;
         this.reconnectPeriod = reconnectPeriod;
         this.reconnectNum = reconnectNum;
+        this.selfConnect =selfConnect;
+
     }
 
     public String ip = "192.168.58.88";
@@ -28,4 +30,5 @@ public class UDPComParam
     public int reconnectEnable = 0;
     public int reconnectPeriod = 100;
     public int reconnectNum = 3;
+    public int selfConnect =0;
 }
